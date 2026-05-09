@@ -1,6 +1,6 @@
 {
   "name": "codetama",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A digital pet that lives in your Claude Code session — every prompt is food.",
   "type": "module",
   "bin": {
