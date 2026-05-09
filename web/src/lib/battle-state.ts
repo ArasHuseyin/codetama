@@ -1,6 +1,6 @@
 import { db } from "@/db/client";
 import { battles, battleTurns, creatures, events, tiles, users } from "@/db/schema";
-import { and, asc, desc, eq, gte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, or, sql } from "drizzle-orm";
 import {
   applyMove,
   isOver,
@@ -8,9 +8,11 @@ import {
   type Combatant,
 } from "./battle-engine";
 import { availableSkills, getSkill } from "./battle-skills";
+import { MAX_BATTLE_ENERGY, REGEN_HOURS } from "./battle-energy";
 import { canAttackerReach } from "./reachability";
 
 export const BATTLE_PAIR_COOLDOWN_MS = 60 * 60 * 1000;
+const HOUR_MS = 3_600_000;
 
 export interface BattleSnapshot {
   id: string;
@@ -63,81 +65,104 @@ export async function startBattle(args: {
   const { attackerUserId, defenderUserId, tileX, tileY } = args;
   if (attackerUserId === defenderUserId) return { error: "cannot battle yourself" };
 
-  const [tileRow] = await db
-    .select({ ownerUserId: tiles.ownerUserId })
-    .from(tiles)
-    .where(and(eq(tiles.x, tileX), eq(tiles.y, tileY)))
-    .limit(1);
-  if (!tileRow) return { error: "tile does not exist" };
-  if (tileRow.ownerUserId !== defenderUserId) return { error: "defender no longer owns this tile" };
-
+  // Reachability is read-only and uses several joins; check it before grabbing the lock.
   const reachable = await canAttackerReach(attackerUserId, tileX, tileY);
   if (!reachable) return { error: "tile not within reach of any of your bases" };
 
-  const cooldownSince = new Date(Date.now() - BATTLE_PAIR_COOLDOWN_MS);
-  const [recent] = await db
-    .select({ state: battles.state, endedAt: battles.endedAt })
-    .from(battles)
-    .where(
-      and(
-        or(
-          and(eq(battles.attackerUserId, attackerUserId), eq(battles.defenderUserId, defenderUserId)),
-          and(eq(battles.attackerUserId, defenderUserId), eq(battles.defenderUserId, attackerUserId)),
+  return await db.transaction(async (tx) => {
+    // Serialize start-battle attempts per attacker. Two concurrent /api/battle/start
+    // requests from the same user used to both pass energy + cooldown checks and
+    // create two battles at once. The advisory lock makes them queue per-user;
+    // it's released when the transaction commits or rolls back.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${attackerUserId}))`);
+
+    const now = new Date();
+
+    // Re-fetch tile inside the transaction in case ownership changed.
+    const [tileRow] = await tx
+      .select({ ownerUserId: tiles.ownerUserId })
+      .from(tiles)
+      .where(and(eq(tiles.x, tileX), eq(tiles.y, tileY)))
+      .limit(1);
+    if (!tileRow) return { error: "tile does not exist" };
+    if (tileRow.ownerUserId !== defenderUserId) return { error: "defender no longer owns this tile" };
+
+    // Energy check inside the transaction (was outside, racy).
+    const energyWindowMs = MAX_BATTLE_ENERGY * REGEN_HOURS * HOUR_MS;
+    const energySince = new Date(now.getTime() - energyWindowMs);
+    const [{ count: consumed = 0 } = { count: 0 }] = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(battles)
+      .where(and(eq(battles.attackerUserId, attackerUserId), gte(battles.startedAt, energySince)));
+    if (consumed >= MAX_BATTLE_ENERGY) {
+      return { error: "no battle energy" };
+    }
+
+    const cooldownSince = new Date(now.getTime() - BATTLE_PAIR_COOLDOWN_MS);
+    const [recent] = await tx
+      .select({ state: battles.state, endedAt: battles.endedAt })
+      .from(battles)
+      .where(
+        and(
+          or(
+            and(eq(battles.attackerUserId, attackerUserId), eq(battles.defenderUserId, defenderUserId)),
+            and(eq(battles.attackerUserId, defenderUserId), eq(battles.defenderUserId, attackerUserId)),
+          ),
+          gte(battles.startedAt, cooldownSince),
         ),
-        gte(battles.startedAt, cooldownSince),
-      ),
-    )
-    .orderBy(desc(battles.startedAt))
-    .limit(1);
-  if (recent) {
-    if (recent.state === "active") return { error: "you already have an active battle with this player" };
-    return { error: "this matchup is on cooldown — try again later" };
-  }
+      )
+      .orderBy(desc(battles.startedAt))
+      .limit(1);
+    if (recent) {
+      if (recent.state === "active") return { error: "you already have an active battle with this player" };
+      return { error: "this matchup is on cooldown — try again later" };
+    }
 
-  const [attackerCreature] = await db
-    .select()
-    .from(creatures)
-    .where(and(eq(creatures.userId, attackerUserId), eq(creatures.active, true)))
-    .limit(1);
+    const [attackerCreature] = await tx
+      .select()
+      .from(creatures)
+      .where(and(eq(creatures.userId, attackerUserId), eq(creatures.active, true)))
+      .limit(1);
 
-  const [defenderCreature] = await db
-    .select()
-    .from(creatures)
-    .where(and(eq(creatures.userId, defenderUserId), eq(creatures.active, true)))
-    .limit(1);
+    const [defenderCreature] = await tx
+      .select()
+      .from(creatures)
+      .where(and(eq(creatures.userId, defenderUserId), eq(creatures.active, true)))
+      .limit(1);
 
-  if (!attackerCreature) return { error: "you have no active creature" };
-  if (!defenderCreature) return { error: "defender has no active creature" };
+    if (!attackerCreature) return { error: "you have no active creature" };
+    if (!defenderCreature) return { error: "defender has no active creature" };
 
-  const attackerStats = statsOf(attackerCreature);
-  const defenderStats = statsOf(defenderCreature);
-  const attackerHp = maxHpFor(attackerStats);
-  const defenderHp = maxHpFor(defenderStats);
+    const attackerStats = statsOf(attackerCreature);
+    const defenderStats = statsOf(defenderCreature);
+    const attackerHp = maxHpFor(attackerStats);
+    const defenderHp = maxHpFor(defenderStats);
 
-  const [created] = await db
-    .insert(battles)
-    .values({
-      attackerUserId,
-      defenderUserId,
-      attackerCreatureId: attackerCreature.id,
-      defenderCreatureId: defenderCreature.id,
-      state: "active",
-      turnOwnerUserId: defenderUserId,
-      turnNo: 0,
-      attackerHp,
-      attackerMaxHp: attackerHp,
-      defenderHp,
-      defenderMaxHp: defenderHp,
-      attackerCooldowns: "{}",
-      defenderCooldowns: "{}",
-      challengedTileX: tileX,
-      challengedTileY: tileY,
-      tileCaptured: false,
-    })
-    .returning({ id: battles.id });
+    const [created] = await tx
+      .insert(battles)
+      .values({
+        attackerUserId,
+        defenderUserId,
+        attackerCreatureId: attackerCreature.id,
+        defenderCreatureId: defenderCreature.id,
+        state: "active",
+        turnOwnerUserId: defenderUserId,
+        turnNo: 0,
+        attackerHp,
+        attackerMaxHp: attackerHp,
+        defenderHp,
+        defenderMaxHp: defenderHp,
+        attackerCooldowns: "{}",
+        defenderCooldowns: "{}",
+        challengedTileX: tileX,
+        challengedTileY: tileY,
+        tileCaptured: false,
+      })
+      .returning({ id: battles.id });
 
-  if (!created) return { error: "failed to create battle" };
-  return { battleId: created.id };
+    if (!created) return { error: "failed to create battle" };
+    return { battleId: created.id };
+  });
 }
 
 export async function getBattleSnapshot(battleId: string): Promise<BattleSnapshot | null> {
