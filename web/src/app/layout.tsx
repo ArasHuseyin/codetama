@@ -28,10 +28,56 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
+const ORG_LD = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://codetama.com/#org",
+      name: "Codetama",
+      url: "https://codetama.com",
+      logo: "https://codetama.com/oauth-logo.svg",
+      description: "A digital pet that grows as you use Claude Code.",
+      sameAs: [
+        "https://github.com/ArasHuseyin/codetama",
+        "https://www.npmjs.com/package/codetama",
+      ],
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://codetama.com/#website",
+      url: "https://codetama.com",
+      name: "Codetama",
+      publisher: { "@id": "https://codetama.com/#org" },
+      description:
+        "A digital pet that grows as you use Claude Code. Every prompt is food. Every tool shapes its character. Battle other developers on a shared world map.",
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://codetama.com/#app",
+      name: "Codetama CLI",
+      operatingSystem: "Linux, macOS, Windows",
+      applicationCategory: "DeveloperApplication",
+      url: "https://www.npmjs.com/package/codetama",
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      description:
+        "Open-source Node.js CLI that integrates with Claude Code hooks to grow a virtual creature based on your coding activity.",
+      author: { "@id": "https://codetama.com/#org" },
+    },
+  ],
+};
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   return (
     <html lang="en">
+      <head>
+        <script
+          type="application/ld+json"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_LD) }}
+        />
+      </head>
       <body>
         <div className="mx-auto max-w-4xl px-6 py-8">
           <header className="mb-10 flex items-center justify-between">
