@@ -101,25 +101,45 @@ export async function POST(req: Request) {
   }
 
   const now = new Date();
-
-  // Upsert each creature by (user_id, id) — using id as the canonical key from CLI.
-  // Mark not-sent creatures as inactive (soft delete).
   const incomingIds = sanitized.map((c) => c.id);
 
+  // Pre-check: detect cross-user IDs in one batch. Creature IDs are exposed publicly
+  // via /api/map, so we must reject any sync that targets an id owned by another user.
+  const existingRows = incomingIds.length > 0
+    ? await db
+        .select({
+          id: creatures.id,
+          userId: creatures.userId,
+          lastSyncedAt: creatures.lastSyncedAt,
+          str: creatures.str,
+          intStat: creatures.intStat,
+          dex: creatures.dex,
+        })
+        .from(creatures)
+        .where(inArray(creatures.id, incomingIds))
+    : [];
+
+  const existingByOwn = new Map<
+    string,
+    { lastSyncedAt: Date; str: number; intStat: number; dex: number }
+  >();
+  for (const row of existingRows) {
+    if (row.userId !== user.id) {
+      return new NextResponse("forbidden — creature id belongs to another user", { status: 403 });
+    }
+    existingByOwn.set(row.id, {
+      lastSyncedAt: row.lastSyncedAt,
+      str: row.str,
+      intStat: row.intStat,
+      dex: row.dex,
+    });
+  }
+
   for (const c of sanitized) {
-    const [prev] = await db
-      .select({
-        lastSyncedAt: creatures.lastSyncedAt,
-        str: creatures.str,
-        intStat: creatures.intStat,
-        dex: creatures.dex,
-      })
-      .from(creatures)
-      .where(eq(creatures.id, c.id))
-      .limit(1);
+    const prev = existingByOwn.get(c.id) ?? null;
 
     const cap = capSuspiciousGains(
-      prev ?? null,
+      prev,
       { str: c.stats.str, int: c.stats.int, dex: c.stats.dex },
       now,
     );
@@ -141,7 +161,7 @@ export async function POST(req: Request) {
       lastSyncedAt: now,
       diedAt: c.diedAt === null ? null : new Date(c.diedAt),
       rebirths: clamp(raw.rebirths, 0, 1_000_000),
-      active: true,
+      active: !c.locked && c.stage !== "dead",
     };
 
     await db
@@ -149,6 +169,10 @@ export async function POST(req: Request) {
       .values(values)
       .onConflictDoUpdate({
         target: creatures.id,
+        // Belt-and-suspenders: even if the pre-check missed a row created
+        // between SELECT and INSERT, this WHERE prevents another user's
+        // row from being mutated.
+        setWhere: eq(creatures.userId, user.id),
         set: {
           name: values.name,
           stage: values.stage,
@@ -162,7 +186,7 @@ export async function POST(req: Request) {
           lastFedAt: values.lastFedAt,
           lastSyncedAt: values.lastSyncedAt,
           diedAt: values.diedAt,
-          active: true,
+          active: values.active,
         },
       });
   }

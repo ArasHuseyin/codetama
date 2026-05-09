@@ -39,6 +39,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <span className="dim">[</span>codetama<span className="dim">]</span>
             </Link>
             <nav className="flex items-center gap-6 text-sm">
+              <Link href="/about">about</Link>
               <Link href="/rules">rules</Link>
               <Link href="/map" className="dim">map</Link>
               {session?.user ? (
@@ -70,11 +71,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </nav>
           </header>
           {children}
-          <footer className="mt-16 border-t border-fgMuted pt-6 text-xs muted flex justify-between">
+          <footer className="mt-16 border-t border-fgMuted pt-6 text-xs muted flex flex-col gap-3 sm:flex-row sm:justify-between">
             <span>codetama.com · MIT</span>
-            <span className="flex gap-4">
+            <span className="flex flex-wrap gap-4">
+              <Link href="/about">about</Link>
               <Link href="/privacy">privacy</Link>
               <Link href="/terms">terms</Link>
+              <Link href="mailto:hello@codetama.com">contact</Link>
             </span>
           </footer>
         </div>

@@ -34,7 +34,17 @@ export default function AboutPage() {
           <li>· CLI binary <code className="text-fg">codetama</code> hooks into Claude Code's <code className="text-fg">UserPromptSubmit</code> + <code className="text-fg">PostToolUse</code></li>
           <li>· Each prompt feeds the active creature; tool calls grow stats (Bash → STR, Read → INT, Edit → DEX)</li>
           <li>· At Adult stage your stat distribution decides the class: Warrior / Sage / Trickster / Balanced</li>
-          <li>· Multiplayer is opt-in via a token from your profile page — no GitHub repo access required</li>
+          <li>· Multiplayer is opt-in via a Codetama CLI token from your profile page — no GitHub repo access required</li>
+        </ul>
+      </section>
+
+      <section className="panel space-y-3 text-sm">
+        <h2 className="text-lg">GitHub sign-in</h2>
+        <ul className="dim space-y-1">
+          <li>· GitHub OAuth is used only as a stable account identity.</li>
+          <li>· Codetama never asks for your GitHub password.</li>
+          <li>· Codetama does not request repository access.</li>
+          <li>· CLI sync tokens are Codetama-only tokens, not GitHub credentials.</li>
         </ul>
       </section>
 

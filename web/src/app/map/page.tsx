@@ -15,6 +15,7 @@ export default async function MapPage() {
             <span className="dim">[</span>codetama<span className="dim">]</span>
           </Link>
           <nav className="flex items-center gap-6 text-sm">
+            <Link href="/about">about</Link>
             <Link href="/rules">rules</Link>
             <Link href="/map" className="dim">
               map
@@ -52,8 +53,10 @@ export default async function MapPage() {
       <footer className="absolute bottom-0 left-0 right-0 z-20 border-t border-fgMuted bg-bgPanel/95 px-6 py-3 text-xs muted flex justify-between">
         <span>codetama.com / MIT</span>
         <span className="flex gap-4">
+          <Link href="/about">about</Link>
           <Link href="/privacy">privacy</Link>
           <Link href="/terms">terms</Link>
+          <Link href="mailto:hello@codetama.com">contact</Link>
         </span>
       </footer>
     </main>

@@ -97,7 +97,7 @@ export function TokenManager({ existing }: { existing: TokenView[] }) {
       {justCreated && (
         <div className="border border-warn/60 bg-warn/5 p-3 space-y-2">
           <p className="text-warn text-sm">
-            ⚠ copy this now — it won't be shown again
+            Copy this Codetama CLI token now. It is not a GitHub token and won't be shown again.
           </p>
           <code className="block break-all bg-bg p-2 text-fg select-all">{justCreated}</code>
           <button

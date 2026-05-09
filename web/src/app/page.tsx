@@ -43,6 +43,19 @@ export default function HomePage() {
         <Card title="03 · see your creature" body="codetama --view" />
       </section>
 
+      <section className="panel space-y-3">
+        <h2 className="text-xl">sign-in and tokens</h2>
+        <p className="text-sm dim">
+          Codetama uses GitHub OAuth only to identify your multiplayer account. You sign in on{" "}
+          <span className="text-fg">github.com</span>; Codetama never asks for your GitHub password
+          and does not request repository access.
+        </p>
+        <p className="text-sm dim">
+          Multiplayer sync uses a Codetama CLI token from your profile. It is not a GitHub token,
+          is shown once, stored hashed on the server, and can be revoked anytime.
+        </p>
+      </section>
+
       <section className="panel space-y-4">
         <h2 className="text-xl">how feeding works</h2>
         <ul className="dim space-y-1 text-sm">

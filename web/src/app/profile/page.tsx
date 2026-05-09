@@ -55,8 +55,13 @@ export default async function ProfilePage() {
           <span className="text-xs muted">copy once · stored hashed · revoke anytime</span>
         </div>
         <p className="text-sm dim">
-          Generate a token, then run <code className="text-fg">codetama --register</code> in your
-          terminal and paste it.
+          Create a Codetama CLI sync token, then run{" "}
+          <code className="text-fg">codetama --register</code> in your terminal and paste it there.
+          This is not your GitHub password or a GitHub access token.
+        </p>
+        <p className="text-sm dim">
+          The token only links your local Codetama CLI to your Codetama multiplayer account. It does
+          not grant access to your GitHub repositories and can be revoked here at any time.
         </p>
 
         <TokenManager
