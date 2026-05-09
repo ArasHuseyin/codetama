@@ -286,8 +286,11 @@ export async function submitMove(args: {
   const nextTurnOwner = ended ? null : isAttackerTurn ? b.defenderUserId : b.attackerUserId;
 
   let captured = false;
+  let staleTurn = false;
   await db.transaction(async (tx) => {
-    await tx
+    // Conditional update: only advances if state, turn owner AND turn number are
+    // still as observed before applyMove(). If two requests race, only one wins.
+    const advanced = await tx
       .update(battles)
       .set({
         attackerHp: nextAttacker.hp,
@@ -301,7 +304,20 @@ export async function submitMove(args: {
         winnerUserId,
         lastMoveAt: new Date(),
       })
-      .where(eq(battles.id, battleId));
+      .where(
+        and(
+          eq(battles.id, battleId),
+          eq(battles.state, "active"),
+          eq(battles.turnOwnerUserId, actorUserId),
+          eq(battles.turnNo, b.turnNo),
+        ),
+      )
+      .returning({ id: battles.id });
+
+    if (advanced.length === 0) {
+      staleTurn = true;
+      return;
+    }
 
     await tx.insert(battleTurns).values({
       battleId,
@@ -350,5 +366,6 @@ export async function submitMove(args: {
     }
   });
 
+  if (staleTurn) return { error: "stale turn — somebody beat you to it" };
   return { ok: true, captured };
 }

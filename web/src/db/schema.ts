@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, primaryKey, integer, boolean, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, primaryKey, integer, boolean, unique, index } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
 
 export const users = pgTable("users", {
@@ -134,22 +134,26 @@ export const battles = pgTable("battles", {
   lastMoveAt: timestamp("last_move_at").notNull().defaultNow(),
 });
 
-export const battleTurns = pgTable("battle_turns", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  battleId: text("battle_id")
-    .notNull()
-    .references(() => battles.id, { onDelete: "cascade" }),
-  turnNo: integer("turn_no").notNull(),
-  actorUserId: text("actor_user_id").notNull(),
-  skillId: text("skill_id").notNull(),
-  damage: integer("damage").notNull().default(0),
-  heal: integer("heal").notNull().default(0),
-  crit: boolean("crit").notNull().default(false),
-  attackerHpAfter: integer("attacker_hp_after").notNull(),
-  defenderHpAfter: integer("defender_hp_after").notNull(),
-  log: text("log").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const battleTurns = pgTable(
+  "battle_turns",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    battleId: text("battle_id")
+      .notNull()
+      .references(() => battles.id, { onDelete: "cascade" }),
+    turnNo: integer("turn_no").notNull(),
+    actorUserId: text("actor_user_id").notNull(),
+    skillId: text("skill_id").notNull(),
+    damage: integer("damage").notNull().default(0),
+    heal: integer("heal").notNull().default(0),
+    crit: boolean("crit").notNull().default(false),
+    attackerHpAfter: integer("attacker_hp_after").notNull(),
+    defenderHpAfter: integer("defender_hp_after").notNull(),
+    log: text("log").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [unique("battle_turns_battle_turn_unique").on(t.battleId, t.turnNo)],
+);
 
 export const events = pgTable("events", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
