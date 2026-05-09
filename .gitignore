@@ -42,3 +42,7 @@ desktop.ini
 
 # local state
 .codetama/
+
+# private working notes — kept locally, not in repo
+audit.md
+features.md
