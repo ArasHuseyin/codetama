@@ -42,10 +42,38 @@ export function TokenManager({ existing }: { existing: TokenView[] }) {
   }
 
   function revoke(id: string) {
+    if (!confirm("revoke this token? the CLI using it will stop syncing.")) return;
     startTransition(async () => {
       const res = await fetch(`/api/tokens/${id}`, { method: "DELETE" });
       if (!res.ok) return;
       setTokens(tokens.map((t) => (t.id === id ? { ...t, revoked: true } : t)));
+    });
+  }
+
+  function regenerate(token: TokenView) {
+    if (!confirm(`rotate "${token.name}"? the old token will stop working immediately.`)) return;
+    setError(null);
+    startTransition(async () => {
+      const revokeRes = await fetch(`/api/tokens/${token.id}`, { method: "DELETE" });
+      if (!revokeRes.ok) {
+        setError("failed to revoke old token");
+        return;
+      }
+      const createRes = await fetch("/api/tokens", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: token.name }),
+      });
+      if (!createRes.ok) {
+        setError(await createRes.text());
+        return;
+      }
+      const data = (await createRes.json()) as { token: string; record: TokenView };
+      setJustCreated(data.token);
+      setTokens([
+        data.record,
+        ...tokens.map((t) => (t.id === token.id ? { ...t, revoked: true } : t)),
+      ]);
     });
   }
 
@@ -109,9 +137,14 @@ export function TokenManager({ existing }: { existing: TokenView[] }) {
                 {t.revoked ? (
                   <span className="muted text-xs">revoked</span>
                 ) : (
-                  <button onClick={() => revoke(t.id)} className="btn-danger" disabled={isPending}>
-                    revoke
-                  </button>
+                  <div className="inline-flex gap-2">
+                    <button onClick={() => regenerate(t)} className="btn" disabled={isPending}>
+                      rotate
+                    </button>
+                    <button onClick={() => revoke(t.id)} className="btn-danger" disabled={isPending}>
+                      revoke
+                    </button>
+                  </div>
                 )}
               </td>
             </tr>

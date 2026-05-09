@@ -1,5 +1,5 @@
 import { db } from "@/db/client";
-import { battles, battleTurns, creatures, tiles, users } from "@/db/schema";
+import { battles, battleTurns, creatures, events, tiles, users } from "@/db/schema";
 import { and, asc, desc, eq, gte, or } from "drizzle-orm";
 import {
   applyMove,
@@ -335,6 +335,17 @@ export async function submitMove(args: {
       if (updated.length > 0) {
         captured = true;
         await tx.update(battles).set({ tileCaptured: true }).where(eq(battles.id, battleId));
+        await tx.insert(events).values({
+          userId: b.defenderUserId,
+          kind: "tile_lost",
+          payload: JSON.stringify({
+            x: b.challengedTileX,
+            y: b.challengedTileY,
+            attackerUserId: b.attackerUserId,
+            attackerName: attackerCreature.name,
+            battleId,
+          }),
+        });
       }
     }
   });

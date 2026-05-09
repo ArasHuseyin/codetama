@@ -1,6 +1,7 @@
 import { checkEvolution } from "../core/evolution.js";
 import { feedAll } from "../core/hunger.js";
 import { activeCreature, loadOrInit, saveState } from "../core/state.js";
+import { bumpStreak } from "../core/streak.js";
 import { pushSync, shouldSyncNow } from "../core/sync.js";
 import type { FoodType, State } from "../types.js";
 
@@ -31,7 +32,8 @@ export async function runFeed(): Promise<void> {
   const active = activeCreature(state);
   const fedState = feedAll(state, food, now, active?.id ?? null);
   const evolved = checkEvolution(fedState, now);
-  saveState(evolved.state);
+  const streaked = food === "prompt" ? bumpStreak(evolved.state, now) : evolved.state;
+  saveState(streaked);
 
   for (const ev of evolved.events) {
     if (ev.spawnedNewEgg) {
@@ -43,7 +45,7 @@ export async function runFeed(): Promise<void> {
     }
   }
 
-  await maybeSync(evolved.state, now);
+  await maybeSync(streaked, now);
 }
 
 function mapPayloadToFood(payload: HookPayload): FoodType | null {
@@ -73,14 +75,27 @@ async function maybeSync(state: State, now: number): Promise<void> {
   if (!shouldSyncNow(state, now)) return;
   const result = await pushSync(state, now);
   const after = loadOrInit();
-  if (after.cloud) {
-    saveState({
-      ...after,
-      cloud: {
-        ...after.cloud,
-        lastSyncAt: result.ok ? now : after.cloud.lastSyncAt,
-        lastSyncError: result.ok ? null : (result.error ?? "unknown"),
-      },
-    });
-  }
+  if (!after.cloud) return;
+
+  const incoming = (result.events ?? []).map((e) => ({
+    id: e.id,
+    kind: e.kind,
+    payload: e.payload,
+    createdAt: e.createdAt,
+    shown: false,
+  }));
+  const existing = after.remoteEvents ?? [];
+  const seen = new Set(existing.map((e) => e.id));
+  const merged = [...existing, ...incoming.filter((e) => !seen.has(e.id))];
+  const trimmed = merged.slice(-50);
+
+  saveState({
+    ...after,
+    remoteEvents: trimmed,
+    cloud: {
+      ...after.cloud,
+      lastSyncAt: result.ok ? now : after.cloud.lastSyncAt,
+      lastSyncError: result.ok ? null : (result.error ?? "unknown"),
+    },
+  });
 }

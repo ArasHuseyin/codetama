@@ -42,10 +42,11 @@ interface SyncCreatureBody {
 interface SyncBody {
   creatures: SyncCreatureBody[];
   rebirths: number;
+  streak?: { days: number; longestDays: number; lastActivityDay: string };
 }
 
 export function buildSyncBody(state: State): SyncBody {
-  return {
+  const body: SyncBody = {
     rebirths: state.history.rebirths,
     creatures: state.creatures.map((c) => ({
       id: c.id,
@@ -62,9 +63,23 @@ export function buildSyncBody(state: State): SyncBody {
       locked: c.locked,
     })),
   };
+  if (state.streak) {
+    body.streak = {
+      days: state.streak.days,
+      longestDays: state.streak.longestDays,
+      lastActivityDay: state.streak.lastActivityDay,
+    };
+  }
+  return body;
 }
 
-export async function pushSync(state: State, _now: number = Date.now()): Promise<{ ok: boolean; error?: string }> {
+export interface PushSyncResult {
+  ok: boolean;
+  error?: string;
+  events?: Array<{ id: string; kind: string; payload: unknown; createdAt: string }>;
+}
+
+export async function pushSync(state: State, _now: number = Date.now()): Promise<PushSyncResult> {
   if (state.mode !== "multiplayer" || !state.cloud) return { ok: false, error: "not in multiplayer mode" };
 
   const url = `${getServerUrl(state)}/api/cli/sync`;
@@ -81,8 +96,10 @@ export async function pushSync(state: State, _now: number = Date.now()): Promise
       const text = await res.text().catch(() => "");
       return { ok: false, error: `${res.status}: ${text}` };
     }
-    void (await res.json().catch(() => null));
-    return { ok: true };
+    const body = (await res.json().catch(() => null)) as
+      | { events?: Array<{ id: string; kind: string; payload: unknown; createdAt: string }> }
+      | null;
+    return { ok: true, events: body?.events ?? [] };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }

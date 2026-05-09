@@ -47,6 +47,34 @@ export interface CloudConfig {
   lastSyncError: string | null;
 }
 
+export interface CreatureSnapshot {
+  promptsTotal: number;
+  stage: Stage;
+  statsSum: number;
+  hunger: number;
+  locked: boolean;
+}
+
+export interface ViewState {
+  lastViewedAt: number;
+  snapshots: Record<string, CreatureSnapshot>;
+  acknowledgedEventIds: string[];
+}
+
+export interface StreakState {
+  days: number;
+  longestDays: number;
+  lastActivityDay: string;
+}
+
+export interface RemoteEvent {
+  id: string;
+  kind: string;
+  payload: unknown;
+  createdAt: string;
+  shown: boolean;
+}
+
 export interface State {
   version: 3;
   mode: Mode;
@@ -57,6 +85,9 @@ export interface State {
     deaths: number;
     rebirths: number;
   };
+  view?: ViewState;
+  streak?: StreakState;
+  remoteEvents?: RemoteEvent[];
 }
 
 export const DEFAULT_SERVER_URL = "https://codetama.com";

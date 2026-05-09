@@ -8,6 +8,9 @@ export const users = pgTable("users", {
   emailVerified: timestamp("emailVerified", { mode: "date" }),
   image: text("image"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  streakDays: integer("streak_days").notNull().default(0),
+  streakLongest: integer("streak_longest").notNull().default(0),
+  streakLastDay: text("streak_last_day"),
 });
 
 export const accounts = pgTable(
@@ -146,6 +149,17 @@ export const battleTurns = pgTable("battle_turns", {
   defenderHpAfter: integer("defender_hp_after").notNull(),
   log: text("log").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const events = pgTable("events", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  payload: text("payload").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  deliveredAt: timestamp("delivered_at"),
 });
 
 export type User = typeof users.$inferSelect;

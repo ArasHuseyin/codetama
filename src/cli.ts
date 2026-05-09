@@ -8,37 +8,53 @@ import { runStub } from "./commands/stub.js";
 import { runView } from "./commands/view.js";
 import { runRegister } from "./commands/register.js";
 import { runLocal } from "./commands/local.js";
+import { runRename } from "./commands/rename.js";
 import { runWeb } from "./commands/web.js";
 
 interface ParsedArgs {
   command: string;
   force: boolean;
+  watch: boolean;
+  positional: string[];
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
   const args = argv.slice(2);
   let command = "help";
   let force = false;
+  let watch = false;
+  const positional: string[] = [];
+  let commandSet = false;
 
   for (const a of args) {
-    if (!a || !a.startsWith("--")) continue;
-    const name = a.slice(2);
-    if (name === "force") {
-      force = true;
-    } else if (command === "help") {
-      command = name;
+    if (!a) continue;
+    if (a.startsWith("--")) {
+      const name = a.slice(2);
+      if (name === "force") {
+        force = true;
+      } else if (name === "watch") {
+        watch = true;
+      } else if (!commandSet) {
+        command = name;
+        commandSet = true;
+      }
+      continue;
     }
+    if (commandSet) positional.push(a);
   }
 
-  return { command, force };
+  return { command, force, watch, positional };
 }
 
 function main(): void {
-  const { command, force } = parseArgs(process.argv);
+  const { command, force, watch, positional } = parseArgs(process.argv);
 
   switch (command) {
     case "creature":
-      runCreature();
+      runCreature({ watch });
+      return;
+    case "rename":
+      runRename(positional.join(" "));
       return;
     case "feed":
       void runFeed();

@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { authenticateCli } from "@/lib/auth-cli";
 import { db } from "@/db/client";
-import { creatures } from "@/db/schema";
+import { creatures, events, users } from "@/db/schema";
+import { isNull } from "drizzle-orm";
 import { and, eq, inArray } from "drizzle-orm";
 import { ensureUserHasTile } from "@/lib/tiles";
 import { capSuspiciousGains } from "@/lib/anti-cheat";
+import { checkRate, rateLimitHeaders } from "@/lib/rate-limit";
+
+const SYNC_WINDOW_MS = 60_000;
+const SYNC_MAX = 30;
 
 interface SyncCreatureBody {
   id: string;
@@ -24,6 +29,11 @@ interface SyncCreatureBody {
 interface SyncBody {
   creatures: SyncCreatureBody[];
   rebirths: number;
+  streak?: {
+    days: number;
+    longestDays: number;
+    lastActivityDay: string;
+  };
 }
 
 const VALID_STAGES = new Set(["egg", "baby", "adult", "elder", "dead"]);
@@ -66,6 +76,14 @@ function sanitize(c: SyncCreatureBody): SyncCreatureBody | string {
 export async function POST(req: Request) {
   const user = await authenticateCli(req);
   if (!user) return new NextResponse("unauthorized", { status: 401 });
+
+  const rate = checkRate(`sync:${user.id}`, { windowMs: SYNC_WINDOW_MS, max: SYNC_MAX });
+  if (!rate.ok) {
+    return new NextResponse("rate limit exceeded", {
+      status: 429,
+      headers: rateLimitHeaders(rate, SYNC_MAX),
+    });
+  }
 
   const raw = (await req.json().catch(() => null)) as SyncBody | null;
   if (!raw || !Array.isArray(raw.creatures)) {
@@ -157,13 +175,64 @@ export async function POST(req: Request) {
       .where(and(eq(creatures.userId, user.id), notIn(creatures.id, incomingIds)));
   }
 
+  if (raw.streak) {
+    const days = clamp(raw.streak.days, 0, 100_000);
+    const longest = clamp(raw.streak.longestDays, days, 100_000);
+    const lastDay = typeof raw.streak.lastActivityDay === "string" ? raw.streak.lastActivityDay.slice(0, 10) : null;
+    if (lastDay && /^\d{4}-\d{2}-\d{2}$/.test(lastDay)) {
+      await db
+        .update(users)
+        .set({ streakDays: days, streakLongest: longest, streakLastDay: lastDay })
+        .where(eq(users.id, user.id));
+    }
+  }
+
   // Place new users on the map (idempotent — only places once).
   const baseCreatureId = sanitized[0]?.id ?? null;
   await ensureUserHasTile(user.id, baseCreatureId).catch(() => {
     // non-fatal; sync still succeeds even if tile placement fails
   });
 
-  return NextResponse.json({ ok: true, count: sanitized.length, syncedAt: now.toISOString() });
+  const pending = await db
+    .select({
+      id: events.id,
+      kind: events.kind,
+      payload: events.payload,
+      createdAt: events.createdAt,
+    })
+    .from(events)
+    .where(and(eq(events.userId, user.id), isNull(events.deliveredAt)))
+    .limit(50);
+
+  const deliveredIds = pending.map((e) => e.id);
+  if (deliveredIds.length > 0) {
+    await db
+      .update(events)
+      .set({ deliveredAt: now })
+      .where(and(eq(events.userId, user.id), inArray(events.id, deliveredIds)));
+  }
+
+  const eventsOut = pending.map((e) => {
+    let parsed: unknown = null;
+    try {
+      parsed = JSON.parse(e.payload);
+    } catch {
+      parsed = null;
+    }
+    return {
+      id: e.id,
+      kind: e.kind,
+      payload: parsed,
+      createdAt: e.createdAt.toISOString(),
+    };
+  });
+
+  return NextResponse.json({
+    ok: true,
+    count: sanitized.length,
+    syncedAt: now.toISOString(),
+    events: eventsOut,
+  });
 }
 
 import { sql, type SQLWrapper } from "drizzle-orm";
@@ -173,5 +242,3 @@ function notIn<T>(column: SQLWrapper, values: T[]) {
   return sql`${column} not in (${sql.join(values.map((v) => sql`${v}`), sql`, `)})`;
 }
 
-// silence unused import
-void inArray;

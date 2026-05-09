@@ -7,7 +7,9 @@ const HELP = `
   Codetama %VERSION%  ·  a creature that lives in your code
   ─────────────────────────────────────────────────────────────
   --creature           show your creature's current state
+  --creature --watch   live-refresh the creature view every 5s
   --view               open the live animated viewer
+  --rename <name>      rename your active creature
   --install            install Claude Code hooks (auto-feed)
   --uninstall          remove Claude Code hooks
   --register           link a CLI token from codetama.com
