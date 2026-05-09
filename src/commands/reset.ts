@@ -1,5 +1,5 @@
-import { existsSync, unlinkSync } from "node:fs";
-import { getStatePath, newState, saveState, generateName } from "../core/state.js";
+import { existsSync } from "node:fs";
+import { getStatePath, loadState, newState, saveState, generateName } from "../core/state.js";
 
 export function runReset(force: boolean): void {
   const path = getStatePath();
@@ -10,8 +10,20 @@ export function runReset(force: boolean): void {
     );
     process.exit(1);
   }
-  if (existsSync(path)) unlinkSync(path);
+
+  const previous = existsSync(path) ? loadState(path) : null;
   const fresh = newState(generateName());
+
+  if (previous?.mode === "multiplayer" && previous.cloud) {
+    fresh.mode = "multiplayer";
+    fresh.cloud = previous.cloud;
+    process.stdout.write(
+      `A new egg has appeared. Multiplayer registration kept (@${previous.cloud.username ?? previous.cloud.userId.slice(0, 8)}).\n` +
+        `On your next prompt the old creature will be retired on the server.\n`,
+    );
+  } else {
+    process.stdout.write(`A new egg has appeared. Run \`codetama --creature\` to see it.\n`);
+  }
+
   saveState(fresh);
-  process.stdout.write(`A new egg has appeared. Run \`codetama --creature\` to see it.\n`);
 }
