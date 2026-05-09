@@ -20,21 +20,53 @@ export default function RulesPage() {
             <Row a="Egg → Baby (subsequent)" b="5" c="veteran rebate" />
             <Row a="Baby → Adult" b="20" c="class is locked in" />
             <Row a="Adult → Elder" b="30" c="subform unlocks" />
-            <Row a="Elder → Egg" b="40" c="retire & respawn" />
+            <Row a="Elder peaks → new egg" b="40" c="elder locks (★), fresh egg spawns" />
           </tbody>
         </table>
       </Section>
 
       <Section title="🍖 feeding">
         <ul className="space-y-1 text-sm dim">
-          <li>· prompt → +10 hunger</li>
-          <li>· Bash → +4 hunger, +1 STR</li>
-          <li>· Read / Grep / Glob → +4 hunger, +1 INT</li>
-          <li>· Edit / Write → +4 hunger, +1 DEX</li>
-          <li>· WebFetch / WebSearch → +4 hunger, +1 INT</li>
+          <li>· prompt → +10 hunger (advances stage on the active creature only)</li>
+          <li>· Bash → +4 hunger, STR fed</li>
+          <li>· Read / Grep / Glob → +4 hunger, INT fed</li>
+          <li>· Edit / Write → +4 hunger, DEX fed</li>
+          <li>· WebFetch / WebSearch → +4 hunger, INT fed</li>
           <li>· decay: <span className="text-fg">−3 hunger / hour</span></li>
           <li>· death: 7 days at 0 hunger straight</li>
         </ul>
+        <p className="text-xs muted">
+          Tools feed every living creature, including locked Elders. Prompts only progress the
+          stage of the youngest non-locked one.
+        </p>
+      </Section>
+
+      <Section title="📈 stat curve">
+        <p className="text-sm dim">
+          Stats grow with diminishing returns: each tool call adds{" "}
+          <code className="text-fg">0.5 / √currentStat</code> to a fractional buffer. When the
+          buffer crosses 1, the stat goes up by 1. Early levels feel rewarding; late game becomes
+          a real grind.
+        </p>
+        <table className="w-full text-sm">
+          <thead className="dim">
+            <tr>
+              <th className="text-left py-2">current stat</th>
+              <th className="text-left py-2">tool calls for +1</th>
+            </tr>
+          </thead>
+          <tbody className="text-fg">
+            <Row a="1" b="2" c="quick start" />
+            <Row a="25" b="10" c="cruise" />
+            <Row a="100" b="20" c="committed" />
+            <Row a="400" b="40" c="grind" />
+            <Row a="1600" b="80" c="legend" />
+          </tbody>
+        </table>
+        <p className="text-xs muted">
+          Level = STR + INT + DEX. After roughly N targeted tool calls the matching stat
+          approaches √N — so 400 Bash calls land you near STR 20, not STR 400.
+        </p>
       </Section>
 
       <Section title="🧬 classes (4)">

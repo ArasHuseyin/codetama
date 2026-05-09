@@ -8,6 +8,7 @@ import {
   type FoodType,
   type Mood,
   type State,
+  type Stats,
 } from "../types.js";
 
 const MS_PER_HOUR = 3_600_000;
@@ -46,8 +47,25 @@ function feedSingle(creature: Creature, food: FoodType, now: number, isPromptFor
   const hunger = Math.min(HUNGER_MAX, decayed.hunger + value.hunger);
 
   const stats = { ...decayed.stats };
+  const statBuffer: Stats = {
+    str: decayed.statBuffer?.str ?? 0,
+    int: decayed.statBuffer?.int ?? 0,
+    dex: decayed.statBuffer?.dex ?? 0,
+  };
   if (value.stat) {
-    stats[value.stat] = stats[value.stat] + TOOL_STAT_GAIN;
+    const key = value.stat;
+    const current = stats[key];
+    // Diminishing returns: each tool contributes 1/sqrt(currentStat) to a
+    // fractional buffer. Stronger creatures grow slower; early game stays
+    // rewarding (stat 1 → +1 per tool, stat 100 → +1 every 10 tools).
+    const gain = TOOL_STAT_GAIN / Math.sqrt(Math.max(1, current));
+    statBuffer[key] += gain;
+    // Epsilon guards against IEEE-754 drift (e.g. 10 × 0.1 ≠ 1.0).
+    const whole = Math.floor(statBuffer[key] + 1e-9);
+    if (whole > 0) {
+      stats[key] = current + whole;
+      statBuffer[key] -= whole;
+    }
   }
 
   const isPrompt = food === "prompt";
@@ -58,6 +76,7 @@ function feedSingle(creature: Creature, food: FoodType, now: number, isPromptFor
     ...decayed,
     hunger,
     stats,
+    statBuffer,
     lastFedAt: now,
     promptsTotal,
     promptsThisStage,

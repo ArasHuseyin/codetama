@@ -26,6 +26,13 @@ export interface Creature {
   stage: Stage;
   klass: ClassName | null;
   stats: Stats;
+  /**
+   * Fractional buffer per stat. Tool-feeds add 1/sqrt(currentStat) here;
+   * once it crosses 1 the stat increments by Math.floor(buffer) and the
+   * remainder stays. Lets us model diminishing returns without losing
+   * progress between integer thresholds.
+   */
+  statBuffer?: Stats;
   hunger: number;
   promptsTotal: number;
   promptsThisStage: number;
@@ -100,7 +107,13 @@ export const DEATH_AT_ZERO_FOR_HOURS = 7 * 24;
 
 export const PROMPT_HUNGER_GAIN = 10;
 export const TOOL_HUNGER_GAIN = 4;
-export const TOOL_STAT_GAIN = 1;
+/**
+ * Coefficient for the diminishing-returns stat curve.
+ * Effective gain per tool call is `TOOL_STAT_GAIN / sqrt(currentStat)`.
+ * Lower = harder grind. 0.5 makes stat-1 require 2 tool calls and stat-100
+ * require 20.
+ */
+export const TOOL_STAT_GAIN = 0.5;
 
 export const FOOD_VALUES: Record<FoodType, { hunger: number; stat: keyof Stats | null }> = {
   prompt: { hunger: PROMPT_HUNGER_GAIN, stat: null },

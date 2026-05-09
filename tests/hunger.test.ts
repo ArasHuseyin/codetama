@@ -67,7 +67,7 @@ describe("feedAll", () => {
     expect(eggAfter.promptsThisStage).toBe(1);
   });
 
-  it("bash tool feeds ALL creatures with hunger AND stat", () => {
+  it("bash tool feeds ALL creatures with hunger and adds to stat buffer", () => {
     const t0 = 1_000_000_000_000;
     const elder = { ...newCreature("Elder", t0), stage: "elder" as const, locked: true };
     const egg = newCreature("Egg", t0);
@@ -79,10 +79,56 @@ describe("feedAll", () => {
       history: { evolutions: [], deaths: 0, rebirths: 0 },
     };
     const result = feedAll(state, "bash", t0, egg.id);
-    expect(result.creatures[0]!.stats.str).toBe(2);
-    expect(result.creatures[1]!.stats.str).toBe(2);
+    // At stat 1 with TOOL_STAT_GAIN=0.5, one feed buffers 0.5 (no full stat yet).
+    expect(result.creatures[0]!.stats.str).toBe(1);
+    expect(result.creatures[1]!.stats.str).toBe(1);
+    expect(result.creatures[0]!.statBuffer?.str).toBeCloseTo(0.5, 5);
     expect(result.creatures[0]!.hunger).toBeCloseTo(54, 0);
     expect(result.creatures[1]!.hunger).toBeCloseTo(54, 0);
+  });
+});
+
+describe("diminishing returns on stat gain", () => {
+  it("gives +1 stat after 2 feeds at base level (stat 1)", () => {
+    const t0 = 1_000_000_000_000;
+    const c = newCreature("Test", t0);
+    let state = singleState(c);
+    state = feedAll(state, "bash", t0, c.id);
+    expect(state.creatures[0]!.stats.str).toBe(1);
+    state = feedAll(state, "bash", t0, c.id);
+    expect(state.creatures[0]!.stats.str).toBe(2);
+  });
+
+  it("requires 20 feeds at stat 100 (1/sqrt(100) × 0.5 = 0.05/feed)", () => {
+    const t0 = 1_000_000_000_000;
+    const c = { ...newCreature("Test", t0), stats: { str: 100, int: 1, dex: 1 } };
+    let state = singleState(c);
+    for (let i = 0; i < 19; i++) {
+      state = feedAll(state, "bash", t0, c.id);
+    }
+    expect(state.creatures[0]!.stats.str).toBe(100);
+    state = feedAll(state, "bash", t0, c.id);
+    expect(state.creatures[0]!.stats.str).toBe(101);
+  });
+
+  it("buffers fractional gains across multiple feeds", () => {
+    const t0 = 1_000_000_000_000;
+    const c = { ...newCreature("Test", t0), stats: { str: 25, int: 1, dex: 1 } };
+    // Stat 25 → gain = 0.5/5 = 0.1/feed → +1 every 10 feeds
+    let state = singleState(c);
+    for (let i = 0; i < 9; i++) state = feedAll(state, "bash", t0, c.id);
+    expect(state.creatures[0]!.stats.str).toBe(25);
+    expect(state.creatures[0]!.statBuffer?.str).toBeCloseTo(0.9, 5);
+    state = feedAll(state, "bash", t0, c.id);
+    expect(state.creatures[0]!.stats.str).toBe(26);
+  });
+
+  it("does not affect stats not targeted by the food type", () => {
+    const t0 = 1_000_000_000_000;
+    const c = { ...newCreature("Test", t0), stats: { str: 100, int: 100, dex: 100 } };
+    const result = feedAll(singleState(c), "bash", t0, c.id);
+    expect(result.creatures[0]!.stats.int).toBe(100);
+    expect(result.creatures[0]!.stats.dex).toBe(100);
   });
 });
 
