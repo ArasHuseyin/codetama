@@ -5,10 +5,27 @@ const T0 = new Date("2026-01-01T00:00:00Z");
 const HOUR = 60 * 60 * 1000;
 
 describe("capSuspiciousGains", () => {
-  it("returns incoming as-is when no previous snapshot", () => {
-    const r = capSuspiciousGains(null, { str: 100, int: 100, dex: 100 }, T0);
+  it("caps first-sync stats based on bornAt as the implicit baseline", () => {
+    // Born 1 hour ago, no previous snapshot, claiming 200/200/200 → cap kicks in.
+    const bornAt = new Date(T0.getTime() - HOUR);
+    const r = capSuspiciousGains(null, { str: 200, int: 200, dex: 200 }, T0, bornAt);
+    expect(r.capped).toBe(true);
+    const total = r.stats.str + r.stats.int + r.stats.dex;
+    expect(total).toBeLessThanOrEqual(1 + 1 + 1 + 240 + 5); // base + 1h*240/h + slack
+  });
+
+  it("allows realistic first-sync stats within bornAt budget", () => {
+    // Born 5 hours ago. Allowed gain: 1200. Claiming 50 each (147 total).
+    const bornAt = new Date(T0.getTime() - 5 * HOUR);
+    const r = capSuspiciousGains(null, { str: 50, int: 50, dex: 50 }, T0, bornAt);
     expect(r.capped).toBe(false);
-    expect(r.stats).toEqual({ str: 100, int: 100, dex: 100 });
+    expect(r.stats).toEqual({ str: 50, int: 50, dex: 50 });
+  });
+
+  it("falls back to now when no bornAt is provided on first sync", () => {
+    // Effectively same instant → minimum elapsed → very little gain allowed.
+    const r = capSuspiciousGains(null, { str: 100, int: 100, dex: 100 }, T0);
+    expect(r.capped).toBe(true);
   });
 
   it("allows realistic gains within rate", () => {

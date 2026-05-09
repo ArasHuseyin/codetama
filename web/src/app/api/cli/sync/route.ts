@@ -142,6 +142,7 @@ export async function POST(req: Request) {
       prev,
       { str: c.stats.str, int: c.stats.int, dex: c.stats.dex },
       now,
+      new Date(c.bornAt),
     );
 
     const values = {
