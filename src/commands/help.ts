@@ -1,7 +1,21 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 import { isInstalled } from "../hooks/claude-code.js";
 import { loadOrInit } from "../core/state.js";
 
-const VERSION = "0.1.0";
+function readVersion(): string {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const pkgPath = resolve(here, "../../package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { version?: string };
+    return pkg.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+const VERSION = readVersion();
 
 const HELP = `
   Codetama %VERSION%  ·  a creature that lives in your code
