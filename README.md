@@ -1,5 +1,10 @@
 # Codetama
 
+[![npm version](https://img.shields.io/npm/v/codetama?color=f5e6c8&labelColor=0a0a0a)](https://www.npmjs.com/package/codetama)
+[![npm downloads](https://img.shields.io/npm/dt/codetama?color=f5e6c8&labelColor=0a0a0a)](https://www.npmjs.com/package/codetama)
+[![license](https://img.shields.io/npm/l/codetama?color=f5e6c8&labelColor=0a0a0a)](./LICENSE)
+[![ci](https://img.shields.io/github/actions/workflow/status/codetama/codetama/ci.yml?branch=main&label=ci&labelColor=0a0a0a)](https://github.com/codetama/codetama/actions)
+
 > A creature that lives in your code.
 
 ```
