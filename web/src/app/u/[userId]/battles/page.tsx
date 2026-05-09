@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { desc, eq, or } from "drizzle-orm";
+import { desc, eq, inArray, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import { battles, users } from "@/db/schema";
 
@@ -12,8 +12,6 @@ interface BattleRow {
   winnerUserId: string | null;
   attackerUserId: string;
   defenderUserId: string;
-  attackerName: string | null;
-  defenderName: string | null;
   startedAt: Date;
   endedAt: Date | null;
   tileCaptured: boolean;
@@ -22,16 +20,13 @@ interface BattleRow {
 }
 
 async function fetchBattles(userId: string): Promise<BattleRow[]> {
-  const attacker = users;
-  const result = await db
+  return db
     .select({
       id: battles.id,
       state: battles.state,
       winnerUserId: battles.winnerUserId,
       attackerUserId: battles.attackerUserId,
       defenderUserId: battles.defenderUserId,
-      attackerName: attacker.name,
-      defenderName: attacker.name,
       startedAt: battles.startedAt,
       endedAt: battles.endedAt,
       tileCaptured: battles.tileCaptured,
@@ -39,11 +34,9 @@ async function fetchBattles(userId: string): Promise<BattleRow[]> {
       challengedTileY: battles.challengedTileY,
     })
     .from(battles)
-    .leftJoin(attacker, eq(battles.attackerUserId, attacker.id))
     .where(or(eq(battles.attackerUserId, userId), eq(battles.defenderUserId, userId)))
     .orderBy(desc(battles.startedAt))
     .limit(20);
-  return result;
 }
 
 async function fetchOpponentNames(rows: BattleRow[], userId: string): Promise<Map<string, string | null>> {
@@ -55,12 +48,9 @@ async function fetchOpponentNames(rows: BattleRow[], userId: string): Promise<Ma
   if (opponentIds.size === 0) return new Map();
   const list = await db
     .select({ id: users.id, name: users.name })
-    .from(users);
-  const map = new Map<string, string | null>();
-  for (const u of list) {
-    if (opponentIds.has(u.id)) map.set(u.id, u.name);
-  }
-  return map;
+    .from(users)
+    .where(inArray(users.id, Array.from(opponentIds)));
+  return new Map(list.map((u) => [u.id, u.name]));
 }
 
 export default async function BattleHistoryPage({ params }: { params: Promise<{ userId: string }> }) {

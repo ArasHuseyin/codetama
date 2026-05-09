@@ -44,7 +44,7 @@ export async function GET(req: Request) {
       intStat: creatures.intStat,
       dex: creatures.dex,
       hunger: creatures.hunger,
-      locked: creatures.active,
+      bornAt: creatures.bornAt,
     })
     .from(tiles)
     .innerJoin(users, eq(users.id, tiles.ownerUserId))
@@ -54,10 +54,28 @@ export async function GET(req: Request) {
     )
     .where(viewport)
     .orderBy(asc(tiles.x), asc(tiles.y))
-    .limit(MAX_TILES);
+    .limit(MAX_TILES * 4);
+
+  // Defensive dedup: even though sync now keeps only one active creature
+  // per user, legacy rows in prod may still have multiple actives. Pick the
+  // most-recently-born active creature per (x, y).
+  const byTile = new Map<string, typeof rows[number]>();
+  for (const r of rows) {
+    const key = `${r.x},${r.y}`;
+    const existing = byTile.get(key);
+    if (!existing) {
+      byTile.set(key, r);
+      continue;
+    }
+    const existingTs = existing.bornAt?.getTime() ?? 0;
+    const incomingTs = r.bornAt?.getTime() ?? 0;
+    if (incomingTs > existingTs) byTile.set(key, r);
+  }
+
+  const deduped = Array.from(byTile.values()).slice(0, MAX_TILES);
 
   return NextResponse.json({
-    tiles: rows.map((r) => ({
+    tiles: deduped.map((r) => ({
       x: r.x,
       y: r.y,
       acquiredAt: r.acquiredAt.toISOString(),
