@@ -49,7 +49,7 @@ export default async function MapPage() {
           </nav>
         </div>
       </header>
-      <MapView />
+      <MapView viewerId={session?.user?.id ?? null} />
       <footer className="absolute bottom-0 left-0 right-0 z-20 border-t border-fgMuted bg-bgPanel/95 px-6 py-3 text-xs muted flex justify-between">
         <span>codetama.com / MIT</span>
         <span className="flex gap-4">
