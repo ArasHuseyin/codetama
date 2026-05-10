@@ -155,6 +155,30 @@ export const battleTurns = pgTable(
   (t) => [unique("battle_turns_battle_turn_unique").on(t.battleId, t.turnNo)],
 );
 
+export const tileAds = pgTable("tile_ads", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  text: text("text"),
+  url: text("url"),
+  status: text("status").notNull().default("draft"),
+  // 'draft'           — user has filled the form but not paid yet
+  // 'pending_payment' — checkout session created, waiting for webhook
+  // 'pending_review'  — paid, awaiting manual review (URL not whitelisted)
+  // 'active'          — visible on tiles
+  // 'rejected'        — review failed; refund issued
+  // 'refunded'        — manual refund within 14d window
+  rejectReason: text("reject_reason"),
+  paidAt: timestamp("paid_at"),
+  refundedAt: timestamp("refunded_at"),
+  stripeSessionId: text("stripe_session_id").unique(),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type TileAd = typeof tileAds.$inferSelect;
+
 export const events = pgTable("events", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   userId: text("user_id")

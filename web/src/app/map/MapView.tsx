@@ -16,6 +16,10 @@ interface MapTile {
     stats: { str: number | null; int: number | null; dex: number | null };
     hunger: number;
   } | null;
+  ad: {
+    text: string | null;
+    url: string | null;
+  } | null;
 }
 
 interface BBox {
@@ -355,19 +359,34 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
 
                 <text
                   x={px + cell / 2}
-                  y={py + Math.max(14, cell * 0.28)}
+                  y={py + Math.max(14, cell * 0.22)}
                   textAnchor="middle"
                   fill={color}
                   fontFamily="JetBrains Mono, monospace"
                   fontSize={Math.max(8, Math.min(11, cell * 0.18))}
                 >
                   {(t.owner.name ?? "anon").slice(0, 8)}
+                  {t.ad && <tspan fill="#d29922" fontSize={Math.max(7, cell * 0.16)}> ★</tspan>}
                 </text>
+                {t.ad?.text && (
+                  <text
+                    x={px + cell / 2}
+                    y={py + Math.max(26, cell * 0.4)}
+                    textAnchor="middle"
+                    fill="#d29922"
+                    fontFamily="JetBrains Mono, monospace"
+                    fontSize={Math.max(7, Math.min(9, cell * 0.15))}
+                    fontStyle="italic"
+                    opacity="0.95"
+                  >
+                    &quot;{t.ad.text.slice(0, 16)}&quot;
+                  </text>
+                )}
                 {t.creature && (
                   <>
                     <text
                       x={px + cell / 2}
-                      y={py + cell / 2 + 4}
+                      y={py + cell / 2 + (t.ad?.text ? 12 : 4)}
                       textAnchor="middle"
                       fill={color}
                       fontFamily="JetBrains Mono, monospace"
@@ -584,6 +603,23 @@ function TileDetail({
         </>
       ) : (
         <p className="dim text-sm">this base has no active creature.</p>
+      )}
+      {tile.ad && (tile.ad.text || tile.ad.url) && (
+        <div className="border border-warn/50 bg-warn/5 p-2 space-y-1 mt-2">
+          <p className="text-xs text-warn">★ paid message</p>
+          {tile.ad.text && <p className="text-sm text-fg italic">&quot;{tile.ad.text}&quot;</p>}
+          {tile.ad.url && (
+            <a
+              href={tile.ad.url.startsWith("http") ? tile.ad.url : `https://${tile.ad.url}`}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="text-xs underline break-all"
+              style={{ color: "#56d3ff" }}
+            >
+              ↗ {tile.ad.url}
+            </a>
+          )}
+        </div>
       )}
       {error && <p className="text-accent text-xs">{error}</p>}
       {isMine ? (

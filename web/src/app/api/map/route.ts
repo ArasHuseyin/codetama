@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
-import { creatures, tiles, users } from "@/db/schema";
+import { creatures, tileAds, tiles, users } from "@/db/schema";
 import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 
 export const revalidate = 0;
@@ -45,6 +45,9 @@ export async function GET(req: Request) {
       dex: creatures.dex,
       hunger: creatures.hunger,
       bornAt: creatures.bornAt,
+      adText: tileAds.text,
+      adUrl: tileAds.url,
+      adStatus: tileAds.status,
     })
     .from(tiles)
     .innerJoin(users, eq(users.id, tiles.ownerUserId))
@@ -52,6 +55,7 @@ export async function GET(req: Request) {
       creatures,
       and(eq(creatures.userId, tiles.ownerUserId), eq(creatures.active, true)),
     )
+    .leftJoin(tileAds, eq(tileAds.userId, tiles.ownerUserId))
     .where(viewport)
     .orderBy(asc(tiles.x), asc(tiles.y))
     .limit(MAX_TILES * 4);
@@ -95,6 +99,13 @@ export async function GET(req: Request) {
             hunger: r.hunger,
           }
         : null,
+      ad:
+        r.adStatus === "active"
+          ? {
+              text: r.adText,
+              url: r.adUrl,
+            }
+          : null,
     })),
   });
 }

@@ -6,6 +6,7 @@ import { db } from "@/db/client";
 import { users } from "@/db/schema";
 import { TokenManager } from "./TokenManager";
 import { DeleteAccount } from "./DeleteAccount";
+import { TileAd } from "./TileAd";
 
 export default async function ProfilePage() {
   const session = await auth();
@@ -75,6 +76,8 @@ export default async function ProfilePage() {
           }))}
         />
       </section>
+
+      <TileAd ownerName={session.user.name ?? "anonymous"} />
 
       <section className="panel space-y-3">
         <h2 className="text-lg">share</h2>
