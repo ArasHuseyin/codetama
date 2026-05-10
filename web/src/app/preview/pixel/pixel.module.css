@@ -1,0 +1,897 @@
+/* ============================================================
+   Pixel-art / GameBoy DMG aesthetic.
+   4-tone green palette, chunky borders, pixel typography,
+   hard offset shadows (no blur). Pokemon-style battle scene.
+   ============================================================ */
+
+.shell {
+  /* DMG palette — closest to actual GameBoy LCD */
+  --gb-darkest: #0f380f;
+  --gb-dark:    #306230;
+  --gb-mid:     #5b8a2a;
+  --gb-light:   #8bac0f;
+  --gb-screen:  #9bbd0f;
+  --gb-screen-soft: #aacb1f;
+
+  /* Console chrome */
+  --gb-bezel:   #161616;
+  --gb-bezel-2: #2a2a2a;
+
+  /* Accents — used very sparingly */
+  --gb-red:    #d62828;
+  --gb-yellow: #ffd166;
+  --gb-pink:   #f072a8;
+
+  position: relative;
+  isolation: isolate;
+  margin: -2rem -1.5rem;
+  padding: 3.5rem 2rem;
+  background: var(--gb-bezel);
+  color: var(--gb-darkest);
+  font-family: var(--font-pixel-body), "VT323", monospace;
+  font-size: 18px;
+  overflow: hidden;
+  line-height: 1.15;
+}
+
+/* CRT scanline texture on the entire shell */
+.shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 50% 30%, transparent 0%, rgba(0,0,0,0.3) 100%),
+    repeating-linear-gradient(0deg, transparent 0, transparent 3px, rgba(0,0,0,0.18) 4px);
+  z-index: 0;
+}
+
+.shell > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* === Container === */
+
+.screen {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 2.5rem 2rem;
+  background: var(--gb-screen);
+  border: 6px solid var(--gb-bezel);
+  box-shadow:
+    0 0 0 2px var(--gb-bezel-2),
+    8px 8px 0 0 var(--gb-bezel-2);
+  position: relative;
+  image-rendering: pixelated;
+}
+
+.screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 4px 4px, rgba(15, 56, 15, 0.06) 1px, transparent 1px);
+  background-size: 4px 4px;
+  z-index: 0;
+}
+
+.screen > * { position: relative; z-index: 1; }
+
+/* === Header bar === */
+
+.headerBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0.8rem;
+  margin: -2.5rem -2rem 2rem;
+  background: var(--gb-darkest);
+  color: var(--gb-screen);
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+}
+.headerBar span:nth-child(2) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.headerLed {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--gb-yellow);
+  box-shadow: 0 0 0 1px var(--gb-bezel);
+  animation: ledBlink 1.4s steps(2, start) infinite;
+}
+@keyframes ledBlink {
+  to { opacity: 0.3; }
+}
+
+/* === Hero === */
+
+.hero {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.title {
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: clamp(20px, 4vw, 36px);
+  line-height: 1.2;
+  margin: 0;
+  color: var(--gb-darkest);
+  letter-spacing: 0.02em;
+  text-shadow: 3px 3px 0 var(--gb-mid);
+}
+
+.subtitle {
+  font-size: 22px;
+  margin: 0;
+  color: var(--gb-dark);
+  letter-spacing: 0.02em;
+}
+.subtitleAccent {
+  background: var(--gb-darkest);
+  color: var(--gb-screen);
+  padding: 0 6px;
+}
+
+.lede {
+  font-size: 18px;
+  line-height: 1.45;
+  color: var(--gb-darkest);
+  margin: 0.5rem 0 0;
+  max-width: 38rem;
+}
+
+/* === Battle window === */
+
+.battleWindow {
+  position: relative;
+  background: var(--gb-screen-soft);
+  border: 4px solid var(--gb-darkest);
+  padding: 1rem 1rem 0.75rem;
+  margin: 1.5rem 0;
+  box-shadow: 4px 4px 0 0 var(--gb-darkest);
+}
+
+/* Diagonal hatching pattern as background "stage" */
+.battleWindow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      transparent 0,
+      transparent 10px,
+      rgba(15, 56, 15, 0.06) 10px,
+      rgba(15, 56, 15, 0.06) 12px
+    );
+  pointer-events: none;
+}
+.battleWindow > * { position: relative; }
+
+.battleHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 8px;
+  letter-spacing: 0.05em;
+  color: var(--gb-darkest);
+  background: var(--gb-screen);
+  padding: 0.4rem 0.6rem;
+  margin: -1rem -1rem 0.6rem;
+  border-bottom: 4px solid var(--gb-darkest);
+}
+
+/* Combat scene */
+.scene {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: end;
+  min-height: 220px;
+  padding: 0.5rem 0.5rem 1rem;
+}
+
+.combatant {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  will-change: transform;
+}
+.attacker {
+  align-items: flex-start;
+  padding-left: 1rem;
+  align-self: flex-end;
+  margin-top: 1.5rem;
+}
+.defender {
+  align-items: flex-end;
+  padding-right: 1rem;
+  align-self: flex-start;
+}
+
+/* Stage platforms — Pokemon style */
+.platform {
+  position: absolute;
+  bottom: 0;
+  width: 110px;
+  height: 14px;
+  background: var(--gb-mid);
+  border: 2px solid var(--gb-darkest);
+  border-radius: 50%;
+  z-index: 0;
+}
+.platformAtt { left: 14px; }
+.platformDef { right: 14px; bottom: 96px; }
+
+.sprite {
+  font-family: var(--font-pixel-body), "VT323", monospace;
+  white-space: pre;
+  line-height: 1;
+  font-size: 22px;
+  margin: 0;
+  color: var(--gb-darkest);
+  position: relative;
+  z-index: 1;
+  animation: bob 1.3s ease-in-out infinite;
+}
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+
+.label {
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  color: var(--gb-darkest);
+  background: var(--gb-screen);
+  border: 2px solid var(--gb-darkest);
+  padding: 2px 6px;
+}
+
+.dashAtt { animation: dashAtt 0.42s steps(8, end); }
+.dashDef { animation: dashDef 0.42s steps(8, end); }
+@keyframes dashAtt {
+  0%   { transform: translateX(0); }
+  35%  { transform: translateX(40px); }
+  100% { transform: translateX(0); }
+}
+@keyframes dashDef {
+  0%   { transform: translateX(0); }
+  35%  { transform: translateX(-40px); }
+  100% { transform: translateX(0); }
+}
+
+/* Damage numbers */
+.damageNum {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translate(-50%, 0);
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 14px;
+  color: var(--gb-red);
+  text-shadow:
+    1px 0 0 var(--gb-darkest), -1px 0 0 var(--gb-darkest),
+    0 1px 0 var(--gb-darkest), 0 -1px 0 var(--gb-darkest),
+    2px 2px 0 rgba(0,0,0,0.3);
+  animation: floatUp 0.95s steps(10, end) forwards;
+  pointer-events: none;
+  z-index: 7;
+  letter-spacing: 0.04em;
+}
+.critNum {
+  font-size: 18px;
+  color: var(--gb-yellow);
+  text-shadow:
+    1px 0 0 var(--gb-darkest), -1px 0 0 var(--gb-darkest),
+    0 1px 0 var(--gb-darkest), 0 -1px 0 var(--gb-darkest),
+    2px 2px 0 var(--gb-red);
+}
+@keyframes floatUp {
+  0%   { transform: translate(-50%, 0)    scale(0.7); opacity: 0; }
+  15%  { transform: translate(-50%, -8px) scale(1.15); opacity: 1; }
+  100% { transform: translate(-50%, -52px) scale(0.95); opacity: 0; }
+}
+
+/* Particles — chunky pixel squares */
+.particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  background: var(--gb-darkest);
+  pointer-events: none;
+  z-index: 6;
+  animation: particleFly 0.78s steps(8, end) forwards;
+  --dx: 0px;
+  --dy: 0px;
+}
+.particleMagic { background: var(--gb-pink); }
+.particleAmber { background: var(--gb-yellow); }
+@keyframes particleFly {
+  0%   { transform: translate(-50%, -50%); opacity: 0; }
+  20%  { opacity: 1; }
+  100% {
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy)));
+    opacity: 0;
+  }
+}
+
+/* Banner */
+.banner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 9;
+}
+.bannerText {
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: clamp(14px, 2.5vw, 22px);
+  color: var(--gb-yellow);
+  text-shadow:
+    2px 0 0 var(--gb-darkest), -2px 0 0 var(--gb-darkest),
+    0 2px 0 var(--gb-darkest), 0 -2px 0 var(--gb-darkest),
+    4px 4px 0 var(--gb-red);
+  background: var(--gb-darkest);
+  padding: 0.6rem 1rem;
+  border: 4px solid var(--gb-screen);
+  letter-spacing: 0.08em;
+  animation: bannerPop 1.4s steps(8, end) forwards;
+  white-space: nowrap;
+}
+@keyframes bannerPop {
+  0%   { transform: scale(0); opacity: 0; }
+  20%  { transform: scale(1.15); opacity: 1; }
+  60%  { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+.flash {
+  position: absolute;
+  inset: 0;
+  background: var(--gb-screen);
+  z-index: 8;
+  pointer-events: none;
+  animation: flashIn 0.22s steps(4, end) forwards;
+}
+@keyframes flashIn {
+  0%   { opacity: 0; }
+  20%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Shake */
+.shakeMild { animation: shakeMild 0.3s steps(6, end); }
+.shakeHard { animation: shakeHard 0.5s steps(10, end); }
+@keyframes shakeMild {
+  0%, 100% { transform: translate(0, 0); }
+  20%      { transform: translate(-3px, 1px); }
+  40%      { transform: translate(3px, -1px); }
+  60%      { transform: translate(-2px, -1px); }
+  80%      { transform: translate(2px, 1px); }
+}
+@keyframes shakeHard {
+  0%, 100% { transform: translate(0, 0); }
+  10% { transform: translate(-7px, 3px); }
+  20% { transform: translate(7px, -3px); }
+  30% { transform: translate(-6px, -3px); }
+  40% { transform: translate(6px, 4px); }
+  50% { transform: translate(-5px, 2px); }
+  60% { transform: translate(5px, -2px); }
+  70% { transform: translate(-4px, -1px); }
+  80% { transform: translate(3px, 1px); }
+  90% { transform: translate(-2px, 0); }
+}
+
+/* === HP bars (Pokemon style) === */
+
+.hpBars {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin: 0.5rem 0;
+}
+.hpBar {
+  background: var(--gb-screen);
+  border: 3px solid var(--gb-darkest);
+  padding: 0.4rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  box-shadow: 3px 3px 0 0 var(--gb-darkest);
+}
+.hpHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.hpName {
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--gb-darkest);
+}
+.hpVal {
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 8px;
+  color: var(--gb-darkest);
+  font-variant-numeric: tabular-nums;
+}
+.hpTrack {
+  position: relative;
+  height: 8px;
+  background: var(--gb-screen-soft);
+  border: 2px solid var(--gb-darkest);
+}
+.hpFill {
+  height: 100%;
+  transition: width 700ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.hpOk   { background: var(--gb-darkest); }
+.hpWarn { background: var(--gb-yellow); }
+.hpCrit { background: var(--gb-red); }
+.hpDead { background: var(--gb-mid); }
+
+/* === Battle log dialog box === */
+
+.dialog {
+  background: var(--gb-screen);
+  border: 4px solid var(--gb-darkest);
+  padding: 0.7rem 0.9rem;
+  margin: 0.6rem 0 0;
+  font-size: 18px;
+  color: var(--gb-darkest);
+  min-height: 4.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  box-shadow: 4px 4px 0 0 var(--gb-darkest);
+  position: relative;
+}
+.dialog::after {
+  content: "▼";
+  position: absolute;
+  bottom: 4px;
+  right: 8px;
+  font-size: 12px;
+  color: var(--gb-darkest);
+  animation: bounceDown 1s steps(4, end) infinite;
+}
+@keyframes bounceDown {
+  0%, 50%, 100% { transform: translateY(0); }
+  25%, 75% { transform: translateY(2px); }
+}
+.logLine {
+  animation: typeLine 0.5s steps(20, end);
+  white-space: nowrap;
+  overflow: hidden;
+}
+@keyframes typeLine {
+  from { clip-path: inset(0 100% 0 0); }
+  to   { clip-path: inset(0 0 0 0); }
+}
+
+/* === Action menu (CTAs) === */
+
+.menu {
+  background: var(--gb-screen);
+  border: 4px solid var(--gb-darkest);
+  padding: 0.85rem 1rem;
+  margin: 1.5rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  box-shadow: 4px 4px 0 0 var(--gb-darkest);
+  font-size: 18px;
+}
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  background: transparent;
+  border: none;
+  font: inherit;
+  color: var(--gb-darkest);
+  text-align: left;
+  font-family: inherit;
+  text-decoration: none;
+  width: 100%;
+}
+.menuItem::before {
+  content: "▶";
+  color: var(--gb-darkest);
+  visibility: hidden;
+  font-size: 14px;
+}
+.menuItem:hover::before,
+.menuItem:focus-visible::before {
+  visibility: visible;
+  animation: arrowBlink 0.6s steps(2, start) infinite;
+}
+@keyframes arrowBlink {
+  to { opacity: 0.4; }
+}
+.menuItem:hover, .menuItem:focus-visible {
+  background: var(--gb-screen-soft);
+  outline: none;
+}
+.menuItemCmd {
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  flex: 1;
+}
+.menuItemHint {
+  font-size: 14px;
+  color: var(--gb-dark);
+  letter-spacing: 0.03em;
+}
+.menuCopyDone .menuItemHint {
+  color: var(--gb-red);
+}
+
+/* === Stat panels === */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+  margin: 2.5rem 0;
+}
+.statBox {
+  background: var(--gb-screen);
+  border: 4px solid var(--gb-darkest);
+  padding: 0.85rem 1rem;
+  text-align: center;
+  box-shadow: 4px 4px 0 0 var(--gb-darkest);
+}
+.statValue {
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 28px;
+  color: var(--gb-darkest);
+  text-shadow: 2px 2px 0 var(--gb-mid);
+  letter-spacing: 0.04em;
+}
+.statLabel {
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  color: var(--gb-dark);
+  margin-top: 0.5rem;
+}
+
+/* === Sections === */
+
+.section {
+  margin: 3rem 0;
+}
+.sectionTitle {
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  color: var(--gb-darkest);
+  margin: 0 0 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.sectionTitle::before {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  background: var(--gb-darkest);
+  box-shadow: 14px 0 0 var(--gb-mid);
+}
+.sectionLede {
+  font-size: 18px;
+  color: var(--gb-dark);
+  margin: 0 0 1.25rem;
+  max-width: 36rem;
+  line-height: 1.45;
+}
+
+/* Steps as command cards */
+.steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+.step {
+  background: var(--gb-screen);
+  border: 4px solid var(--gb-darkest);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  box-shadow: 4px 4px 0 0 var(--gb-darkest);
+  transition: transform 120ms steps(4);
+}
+.step:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 0 var(--gb-darkest);
+}
+.stepNum {
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 12px;
+  color: var(--gb-darkest);
+  background: var(--gb-yellow);
+  border: 2px solid var(--gb-darkest);
+  padding: 3px 6px;
+  align-self: flex-start;
+  letter-spacing: 0.04em;
+}
+.stepCmd {
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 11px;
+  color: var(--gb-darkest);
+  background: var(--gb-screen-soft);
+  padding: 0.4rem 0.5rem;
+  border: 2px dashed var(--gb-mid);
+  letter-spacing: 0.04em;
+  word-break: break-all;
+  line-height: 1.5;
+}
+.stepDesc {
+  font-size: 16px;
+  color: var(--gb-dark);
+  line-height: 1.4;
+}
+
+/* Class registry — Pokedex style entries */
+.classes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+.classCard {
+  background: var(--gb-screen);
+  border: 4px solid var(--gb-darkest);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  box-shadow: 4px 4px 0 0 var(--gb-darkest);
+  transition: transform 120ms steps(4);
+  position: relative;
+}
+.classCard:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 0 var(--gb-darkest);
+}
+.classDexId {
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 9px;
+  color: var(--gb-mid);
+  letter-spacing: 0.06em;
+}
+.classHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 2px solid var(--gb-darkest);
+  padding-bottom: 0.4rem;
+}
+.className {
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 13px;
+  color: var(--gb-darkest);
+  letter-spacing: 0.04em;
+}
+.classStat {
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 9px;
+  color: var(--gb-dark);
+}
+.classSigil {
+  color: var(--gb-red);
+}
+.classAscii {
+  font-family: var(--font-pixel-body), "VT323", monospace;
+  white-space: pre;
+  font-size: 18px;
+  color: var(--gb-darkest);
+  text-align: center;
+  line-height: 1;
+  margin: 0.2rem 0;
+}
+.classBlurb {
+  font-size: 16px;
+  color: var(--gb-dark);
+  line-height: 1.4;
+  font-style: italic;
+}
+.classFoot {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  border-top: 2px dashed var(--gb-mid);
+  padding-top: 0.5rem;
+}
+.classFootKey { color: var(--gb-mid); }
+.classFootValue { color: var(--gb-darkest); }
+
+/* Feed table styled as a status screen */
+.feedScreen {
+  background: var(--gb-screen);
+  border: 4px solid var(--gb-darkest);
+  box-shadow: 4px 4px 0 0 var(--gb-darkest);
+  overflow: hidden;
+}
+.feedTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 16px;
+}
+.feedTable th {
+  text-align: left;
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--gb-screen);
+  background: var(--gb-darkest);
+  padding: 0.55rem 0.85rem;
+}
+.feedTable td {
+  padding: 0.6rem 0.85rem;
+  border-bottom: 2px dashed var(--gb-mid);
+  color: var(--gb-darkest);
+}
+.feedTable tr:last-child td {
+  border-bottom: none;
+}
+.feedTool {
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.feedKey {
+  display: inline-block;
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 9px;
+  background: var(--gb-yellow);
+  border: 2px solid var(--gb-darkest);
+  padding: 1px 5px;
+  letter-spacing: 0.04em;
+}
+.feedDelta {
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 10px;
+  color: var(--gb-red);
+}
+.feedNote {
+  color: var(--gb-dark);
+  font-size: 15px;
+}
+
+/* Origin */
+.originBox {
+  background: var(--gb-screen);
+  border: 4px solid var(--gb-darkest);
+  padding: 1.4rem 1.5rem;
+  box-shadow: 4px 4px 0 0 var(--gb-darkest);
+  position: relative;
+}
+.originBox::after {
+  content: "▼";
+  position: absolute;
+  bottom: 6px;
+  right: 12px;
+  color: var(--gb-darkest);
+  animation: bounceDown 1.2s steps(4, end) infinite;
+}
+.originPara {
+  margin: 0 0 0.85rem;
+  font-size: 18px;
+  color: var(--gb-darkest);
+  line-height: 1.4;
+}
+.originPara:last-child { margin-bottom: 0; }
+.originPara strong {
+  background: var(--gb-darkest);
+  color: var(--gb-screen);
+  padding: 0 4px;
+  font-weight: normal;
+}
+
+/* Final CTA */
+.endScreen {
+  margin-top: 3rem;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  background: var(--gb-darkest);
+  color: var(--gb-screen);
+  border: 4px solid var(--gb-darkest);
+  box-shadow: 6px 6px 0 0 var(--gb-mid);
+}
+.endTitle {
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: clamp(14px, 2.4vw, 22px);
+  letter-spacing: 0.06em;
+  margin: 0 0 0.8rem;
+  color: var(--gb-screen);
+}
+.endTitleAccent { color: var(--gb-yellow); }
+.endHint {
+  font-size: 18px;
+  color: var(--gb-light);
+  margin: 0 0 1.5rem;
+}
+.pressAToContinue {
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--gb-yellow);
+  animation: pressBlink 1s steps(2, start) infinite;
+}
+@keyframes pressBlink {
+  to { opacity: 0.3; }
+}
+
+/* Console "buttons" decoration below screen */
+.console {
+  max-width: 64rem;
+  margin: 1rem auto 0;
+  padding: 1.2rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-pixel-display), "Press Start 2P", monospace;
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  color: #777;
+}
+.consoleLeft, .consoleRight {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.dpad {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  background:
+    linear-gradient(0deg, transparent 33%, #333 33% 66%, transparent 66%),
+    linear-gradient(90deg, transparent 33%, #333 33% 66%, transparent 66%);
+  background-color: var(--gb-bezel-2);
+  border-radius: 4px;
+}
+.button {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #6b1a4d;
+  border: 2px solid #2a0a1e;
+  box-shadow: inset -2px -2px 0 rgba(0,0,0,0.3);
+}
+.buttonB { background: #4a2266; }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .sprite, .headerLed, .dialog::after, .pressAToContinue, .originBox::after {
+    animation: none !important;
+  }
+}

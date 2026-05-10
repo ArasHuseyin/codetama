@@ -1,15 +1,16 @@
-import { Battle } from "./preview/terminal/Battle";
-import { CopyCommand } from "./preview/terminal/CopyCommand";
-import { LiveFeed } from "./preview/terminal/LiveFeed";
-import { Section } from "./preview/terminal/Section";
-import { CLASSES } from "./preview/terminal/sprites";
+import type { Metadata } from "next";
+import { Battle } from "./Battle";
+import { CopyCommand } from "./CopyCommand";
+import { LiveFeed } from "./LiveFeed";
+import { Section } from "./Section";
+import { CLASSES } from "./sprites";
 import {
   WarriorWire,
   SageWire,
   TricksterWire,
   BalancedWire,
-} from "./preview/sprites/WireframeSprites";
-import styles from "./preview/terminal/terminal.module.css";
+} from "../sprites/WireframeSprites";
+import styles from "./terminal.module.css";
 
 const CLASS_SPRITES: Record<string, React.ComponentType> = {
   WARRIOR: WarriorWire,
@@ -25,7 +26,12 @@ const BANNER = String.raw` ██████╗ ██████╗ ███
 ╚██████╗╚██████╔╝██████╔╝███████╗   ██║   ██║  ██║██║ ╚═╝ ██║██║  ██║
  ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝`;
 
-export default function HomePage() {
+export const metadata: Metadata = {
+  title: "preview / terminal",
+  description: "Refined CRT terminal aesthetic preview for the Codetama landing page.",
+};
+
+export default function TerminalPreviewPage() {
   return (
     <div className={styles.shell}>
       {/* Boot line */}

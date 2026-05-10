@@ -1,0 +1,449 @@
+/* ============================================================
+   Sprite comparison page — same terminal aesthetic as V1,
+   four variants laid out side-by-side for evaluation.
+   ============================================================ */
+
+.shell {
+  --crt-fg:        #7ee787;
+  --crt-fg-dim:    #3fb950;
+  --crt-fg-muted:  #2a4a2a;
+  --crt-bg:        #0a0e0a;
+  --crt-bg-deep:   #060906;
+  --crt-amber:     #d29922;
+  --crt-cyan:      #56d3ff;
+  --crt-cyan-dim:  #2a8aaa;
+  --crt-danger:    #ff7b72;
+
+  position: relative;
+  isolation: isolate;
+  font-family: "JetBrains Mono", monospace;
+}
+
+.intro {
+  margin-bottom: 3rem;
+}
+.eyebrow {
+  font-size: 0.7rem;
+  letter-spacing: 0.24em;
+  color: var(--crt-cyan);
+  text-shadow: 0 0 6px rgba(86, 211, 255, 0.4);
+  text-transform: uppercase;
+  margin-bottom: 0.55rem;
+}
+.title {
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  margin: 0 0 0.6rem;
+  color: var(--crt-fg);
+  text-shadow: 0 0 12px rgba(126, 231, 135, 0.4);
+}
+.lede {
+  color: var(--crt-fg-dim);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  max-width: 36rem;
+}
+
+.variant {
+  margin: 3rem 0;
+  border: 1px solid var(--crt-fg-muted);
+  background: var(--crt-bg-deep);
+  padding: 1.4rem 1.4rem 1rem;
+  position: relative;
+}
+.variantHead {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 1.4rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px dashed var(--crt-fg-muted);
+}
+.variantNum {
+  font-size: 0.7rem;
+  letter-spacing: 0.24em;
+  color: var(--crt-amber);
+  text-shadow: 0 0 6px rgba(210, 153, 34, 0.4);
+}
+.variantTitle {
+  font-size: 1.1rem;
+  color: var(--crt-fg);
+  text-shadow: 0 0 8px rgba(126, 231, 135, 0.3);
+}
+.variantBlurb {
+  font-size: 0.82rem;
+  color: var(--crt-fg-muted);
+  margin-left: auto;
+  font-style: italic;
+}
+
+.classGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.classBox {
+  background: var(--crt-bg);
+  border: 1px solid var(--crt-fg-muted);
+  padding: 1.2rem 1rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 220px;
+  position: relative;
+}
+
+.classSprite {
+  font-family: "Menlo", "Consolas", ui-monospace, monospace;
+  font-feature-settings: "liga" 0, "calt" 0;
+  font-variant-ligatures: none;
+  text-rendering: optimizeSpeed;
+  white-space: pre;
+  font-size: 0.78rem;
+  line-height: 1.15;
+  margin: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.classLabel {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  color: var(--crt-fg-dim);
+  border-top: 1px dashed var(--crt-fg-muted);
+  padding-top: 0.55rem;
+  width: 100%;
+  text-align: center;
+}
+
+/* Variant 1: phosphor green dominant */
+.v1 .classSprite { color: var(--crt-fg); text-shadow: 0 0 6px rgba(63, 185, 80, 0.5); }
+
+/* Variant 2: each class its own theme color */
+.v2-warrior .classSprite { color: var(--crt-danger); text-shadow: 0 0 6px rgba(255, 123, 114, 0.5); }
+.v2-sage .classSprite { color: var(--crt-cyan); text-shadow: 0 0 6px rgba(86, 211, 255, 0.5); }
+.v2-trickster .classSprite { color: #c9a8ff; text-shadow: 0 0 6px rgba(201, 168, 255, 0.5); }
+.v2-balanced .classSprite { color: var(--crt-amber); text-shadow: 0 0 6px rgba(210, 153, 34, 0.5); }
+
+/* Variant 3: aura-rings */
+.v3 .classBox {
+  position: relative;
+}
+.v3 .classBox::before {
+  content: "";
+  position: absolute;
+  inset: 18% 22%;
+  border: 1px solid var(--crt-fg-muted);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: auraExpand 3.5s ease-in-out infinite;
+}
+.v3 .classBox::after {
+  content: "";
+  position: absolute;
+  inset: 28% 32%;
+  border: 1px dashed var(--crt-cyan-dim);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: auraExpand 3.5s ease-in-out infinite reverse;
+}
+@keyframes auraExpand {
+  0%, 100% { transform: scale(1); opacity: 0.4; }
+  50%      { transform: scale(1.12); opacity: 0.8; }
+}
+.v3 .classSprite {
+  position: relative;
+  z-index: 1;
+  color: var(--crt-fg);
+  text-shadow:
+    0 0 8px rgba(126, 231, 135, 0.6),
+    0 0 18px rgba(86, 211, 255, 0.25);
+}
+
+/* Variant 4: SVG pixel — sprite container styling */
+.v4 .classSprite {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 0 8px rgba(63, 185, 80, 0.4));
+}
+
+/* Variant 5: SVG pixel + aura ring (combines v3 aura on v4 sprites) */
+.v5 .classBox {
+  position: relative;
+}
+.v5 .classBox::before {
+  content: "";
+  position: absolute;
+  inset: 18% 22%;
+  border: 1px solid var(--crt-fg-muted);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: auraExpand 3.5s ease-in-out infinite;
+}
+.v5 .classBox::after {
+  content: "";
+  position: absolute;
+  inset: 28% 32%;
+  border: 1px dashed var(--crt-cyan-dim);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: auraExpand 3.5s ease-in-out infinite reverse;
+}
+.v5 .classSprite {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 0 10px rgba(86, 211, 255, 0.5)) drop-shadow(0 0 6px rgba(63, 185, 80, 0.4));
+}
+
+/* Variant 6: 32×32 detailed SVG sprites */
+.v6 .classSprite {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 0 10px rgba(63, 185, 80, 0.5));
+}
+
+/* Variant 7: tarot card framed */
+.v7 .classBox {
+  background: var(--crt-bg-deep);
+  border: 1px solid var(--crt-amber);
+  position: relative;
+  padding: 0;
+  box-shadow:
+    0 0 0 2px var(--crt-bg-deep),
+    0 0 0 3px var(--crt-fg-muted),
+    0 0 24px -8px rgba(210, 153, 34, 0.3);
+}
+.v7 .classBox::before,
+.v7 .classBox::after {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: var(--crt-amber);
+  pointer-events: none;
+}
+.v7 .classBox::before {
+  top: 6px;
+  left: 6px;
+  border-top: 1px solid;
+  border-left: 1px solid;
+}
+.v7 .classBox::after {
+  bottom: 6px;
+  right: 6px;
+  border-bottom: 1px solid;
+  border-right: 1px solid;
+}
+.v7 .tarotInner {
+  padding: 1.6rem 1rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  height: 100%;
+}
+.v7 .tarotNumeral {
+  font-family: "Major Mono Display", "Menlo", monospace;
+  font-size: 1.4rem;
+  color: var(--crt-amber);
+  text-shadow: 0 0 8px rgba(210, 153, 34, 0.5);
+  letter-spacing: 0.1em;
+}
+.v7 .tarotArt {
+  font-family: "Menlo", "Consolas", ui-monospace, monospace;
+  font-feature-settings: "liga" 0, "calt" 0;
+  font-variant-ligatures: none;
+  white-space: pre;
+  font-size: 0.92rem;
+  line-height: 1.2;
+  color: var(--crt-fg);
+  text-shadow: 0 0 8px rgba(126, 231, 135, 0.5);
+  margin: 0;
+  text-align: center;
+}
+.v7 .tarotName {
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  color: var(--crt-fg);
+  margin-top: auto;
+  border-top: 1px dashed var(--crt-fg-muted);
+  padding-top: 0.55rem;
+  width: 100%;
+  text-align: center;
+}
+.v7 .tarotMotto {
+  font-style: italic;
+  font-size: 0.74rem;
+  color: var(--crt-fg-muted);
+  letter-spacing: 0.04em;
+}
+
+/* Variant 8: wireframe / line-art SVG */
+.v8 .classSprite {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.v8 .classBox {
+  background: var(--crt-bg-deep);
+  position: relative;
+  overflow: hidden;
+}
+.v8 .classBox::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(86, 211, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(86, 211, 255, 0.04) 1px, transparent 1px);
+  background-size: 8px 8px;
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse at center, black 0%, transparent 80%);
+}
+
+/* Head-to-head decision section */
+.duel {
+  margin: 0 0 4rem;
+  padding: 2rem 1.5rem;
+  border: 2px solid var(--crt-amber);
+  background: var(--crt-bg-deep);
+  position: relative;
+  box-shadow:
+    0 0 0 4px var(--crt-bg-deep),
+    0 0 0 5px var(--crt-fg-muted),
+    0 0 36px -10px rgba(210, 153, 34, 0.4);
+}
+.duelHead {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.6rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px dashed var(--crt-amber);
+}
+.duelTag {
+  font-size: 0.7rem;
+  letter-spacing: 0.28em;
+  color: var(--crt-amber);
+  text-transform: uppercase;
+  text-shadow: 0 0 6px rgba(210, 153, 34, 0.5);
+}
+.duelTitle {
+  font-size: 1.4rem;
+  color: var(--crt-fg);
+  margin: 0;
+}
+.duelLede {
+  color: var(--crt-fg-dim);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.duelGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+@media (min-width: 900px) {
+  .duelGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.duelCol {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.duelColHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--crt-fg-muted);
+}
+.duelColLabel {
+  font-size: 1.1rem;
+  color: var(--crt-fg);
+  text-shadow: 0 0 6px rgba(126, 231, 135, 0.4);
+}
+.duelColMeta {
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  color: var(--crt-cyan);
+  text-shadow: 0 0 6px rgba(86, 211, 255, 0.4);
+}
+
+.duelStrip {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.7rem;
+  background: var(--crt-bg);
+  border: 1px solid var(--crt-fg-muted);
+  padding: 1rem;
+}
+.duelCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+}
+.duelCellName {
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
+  color: var(--crt-fg-muted);
+}
+
+.duelTradeoffs {
+  font-size: 0.82rem;
+  color: var(--crt-fg-dim);
+  line-height: 1.55;
+  padding: 0.7rem 0.8rem;
+  border-left: 2px solid currentColor;
+  background: rgba(63, 185, 80, 0.04);
+}
+.duelTradeoffs strong {
+  color: var(--crt-fg);
+  font-style: italic;
+}
+.duelProsCons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+}
+.duelPro { color: var(--crt-fg); }
+.duelPro::before { content: "+ "; color: var(--crt-fg-dim); }
+.duelCon { color: var(--crt-danger); }
+.duelCon::before { content: "− "; color: var(--crt-fg-muted); }
+
+/* Variant 9: hybrid pixel + wireframe */
+.v9 .classSprite {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.howTo {
+  margin-top: 4rem;
+  padding: 1.4rem 1.6rem;
+  border: 1px dashed var(--crt-cyan-dim);
+  background: rgba(86, 211, 255, 0.05);
+  font-size: 0.9rem;
+  color: var(--crt-fg-dim);
+  line-height: 1.6;
+}
+.howTo strong {
+  color: var(--crt-cyan);
+  text-shadow: 0 0 6px rgba(86, 211, 255, 0.4);
+}
