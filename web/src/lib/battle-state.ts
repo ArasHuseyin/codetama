@@ -13,6 +13,7 @@ import { canAttackerReach } from "./reachability";
 
 export const BATTLE_PAIR_COOLDOWN_MS = 60 * 60 * 1000;
 const HOUR_MS = 3_600_000;
+const AUTOPLAY_MAX_TURNS = 80;
 
 export interface BattleSnapshot {
   id: string;
@@ -135,8 +136,96 @@ export async function startBattle(args: {
 
     const attackerStats = statsOf(attackerCreature);
     const defenderStats = statsOf(defenderCreature);
-    const attackerHp = maxHpFor(attackerStats);
-    const defenderHp = maxHpFor(defenderStats);
+    const attackerMaxHp = maxHpFor(attackerStats);
+    const defenderMaxHp = maxHpFor(defenderStats);
+
+    // Auto-play the whole fight in memory, then persist battle + all turns +
+    // tile capture + event in this single transaction. Used to be ~5 DB
+    // roundtrips per turn × up to 80 turns; now it's a handful of writes
+    // total, which keeps the request well under serverless timeouts.
+    let attCur: Combatant = {
+      userId: attackerUserId,
+      creatureId: attackerCreature.id,
+      name: attackerCreature.name,
+      klass: attackerCreature.klass,
+      stats: attackerStats,
+      hp: attackerMaxHp,
+      maxHp: attackerMaxHp,
+      cooldowns: {},
+    };
+    let defCur: Combatant = {
+      userId: defenderUserId,
+      creatureId: defenderCreature.id,
+      name: defenderCreature.name,
+      klass: defenderCreature.klass,
+      stats: defenderStats,
+      hp: defenderMaxHp,
+      maxHp: defenderMaxHp,
+      cooldowns: {},
+    };
+
+    type Side = "attacker" | "defender";
+    let turnOwner: Side = "defender"; // defender opens, matching prior behavior
+    let turnNo = 0;
+    let winner: Side | null = null;
+    const turnRecords: Array<{
+      turnNo: number;
+      actorUserId: string;
+      skillId: string;
+      damage: number;
+      heal: number;
+      crit: boolean;
+      attackerHpAfter: number;
+      defenderHpAfter: number;
+      log: string;
+    }> = [];
+
+    for (let i = 0; i < AUTOPLAY_MAX_TURNS; i++) {
+      const me = turnOwner === "attacker" ? attCur : defCur;
+      const them = turnOwner === "attacker" ? defCur : attCur;
+      const skills = availableSkills(me.klass);
+      if (skills.length === 0) break;
+      const ready = skills.filter((s) => (me.cooldowns[s.id] ?? 0) === 0);
+      const pick = ready.length > 0
+        ? ready[Math.floor(Math.random() * ready.length)]!
+        : skills[0]!;
+
+      const result = applyMove(me, them, pick);
+      const meAfter = result.attacker;
+      const themAfter = result.defender;
+      if (turnOwner === "attacker") {
+        attCur = meAfter;
+        defCur = themAfter;
+      } else {
+        defCur = meAfter;
+        attCur = themAfter;
+      }
+
+      turnNo += 1;
+      turnRecords.push({
+        turnNo,
+        actorUserId: turnOwner === "attacker" ? attackerUserId : defenderUserId,
+        skillId: pick.id,
+        damage: result.damage,
+        heal: result.heal,
+        crit: result.crit,
+        attackerHpAfter: attCur.hp,
+        defenderHpAfter: defCur.hp,
+        log: result.log,
+      });
+
+      const w = isOver(attCur, defCur);
+      if (w) {
+        winner = w;
+        break;
+      }
+
+      turnOwner = turnOwner === "attacker" ? "defender" : "attacker";
+    }
+
+    const ended = winner !== null;
+    const winnerUserId =
+      winner === "attacker" ? attackerUserId : winner === "defender" ? defenderUserId : null;
 
     const [created] = await tx
       .insert(battles)
@@ -145,22 +234,71 @@ export async function startBattle(args: {
         defenderUserId,
         attackerCreatureId: attackerCreature.id,
         defenderCreatureId: defenderCreature.id,
-        state: "active",
-        turnOwnerUserId: defenderUserId,
-        turnNo: 0,
-        attackerHp,
-        attackerMaxHp: attackerHp,
-        defenderHp,
-        defenderMaxHp: defenderHp,
-        attackerCooldowns: "{}",
-        defenderCooldowns: "{}",
+        state: ended ? "ended" : "active",
+        turnOwnerUserId: ended
+          ? null
+          : turnOwner === "attacker"
+          ? attackerUserId
+          : defenderUserId,
+        turnNo,
+        attackerHp: attCur.hp,
+        attackerMaxHp,
+        defenderHp: defCur.hp,
+        defenderMaxHp,
+        attackerCooldowns: JSON.stringify(attCur.cooldowns),
+        defenderCooldowns: JSON.stringify(defCur.cooldowns),
         challengedTileX: tileX,
         challengedTileY: tileY,
         tileCaptured: false,
+        endedAt: ended ? now : null,
+        winnerUserId,
+        lastMoveAt: now,
       })
       .returning({ id: battles.id });
 
     if (!created) return { error: "failed to create battle" };
+
+    if (turnRecords.length > 0) {
+      await tx
+        .insert(battleTurns)
+        .values(turnRecords.map((t) => ({ ...t, battleId: created.id })));
+    }
+
+    if (ended && winnerUserId === attackerUserId) {
+      const updated = await tx
+        .update(tiles)
+        .set({
+          ownerUserId: attackerUserId,
+          baseCreatureId: attackerCreature.id,
+          acquiredAt: now,
+        })
+        .where(
+          and(
+            eq(tiles.x, tileX),
+            eq(tiles.y, tileY),
+            eq(tiles.ownerUserId, defenderUserId),
+          ),
+        )
+        .returning({ id: tiles.id });
+      if (updated.length > 0) {
+        await tx
+          .update(battles)
+          .set({ tileCaptured: true })
+          .where(eq(battles.id, created.id));
+        await tx.insert(events).values({
+          userId: defenderUserId,
+          kind: "tile_lost",
+          payload: JSON.stringify({
+            x: tileX,
+            y: tileY,
+            attackerUserId,
+            attackerName: attackerCreature.name,
+            battleId: created.id,
+          }),
+        });
+      }
+    }
+
     return { battleId: created.id };
   });
 }
