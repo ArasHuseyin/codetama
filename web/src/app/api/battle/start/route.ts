@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { startBattle } from "@/lib/battle-state";
-import { computeEnergy } from "@/lib/battle-energy";
+import { computeAttackCooldown } from "@/lib/battle-cooldown";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -20,10 +20,14 @@ export async function POST(req: Request) {
     return new NextResponse("tile coordinates required", { status: 400 });
   }
 
-  const energy = await computeEnergy(session.user.id);
-  if (energy.available <= 0) {
+  const cooldown = await computeAttackCooldown(session.user.id);
+  if (!cooldown.ready) {
     return NextResponse.json(
-      { error: "no battle energy", regenInMs: energy.nextRegenInMs },
+      {
+        error: "attack on cooldown",
+        readyAt: cooldown.readyAt?.toISOString() ?? null,
+        remainingMs: cooldown.remainingMs,
+      },
       { status: 429 },
     );
   }

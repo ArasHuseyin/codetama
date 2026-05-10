@@ -1,18 +1,22 @@
 /**
- * Read-only: figures out why a user can't attack — checks battle energy,
- * recent matchups (1h cooldown), reachable tiles, and active creature.
+ * Read-only: figures out why a user can't attack — checks per-attacker
+ * cooldown, recent matchups (1h pair cooldown), reachable tiles, and
+ * active creature.
  */
 import { config } from "dotenv";
 import { resolve } from "node:path";
-import { eq, sql, and, or, gte } from "drizzle-orm";
+import { eq, sql, and, or, gte, desc } from "drizzle-orm";
 
 config({ path: resolve(process.cwd(), ".env.local") });
 config({ path: resolve(process.cwd(), ".env") });
 
-const HOUR_MS = 3_600_000;
-const MAX_ENERGY = 5;
-const REGEN_HOURS = 4;
 const PAIR_COOLDOWN_MS = 60 * 60 * 1000;
+const ATTACK_COOLDOWN_MINUTES = (() => {
+  const raw = process.env.ATTACK_COOLDOWN_MINUTES;
+  const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 60;
+})();
+const ATTACK_COOLDOWN_MS = ATTACK_COOLDOWN_MINUTES * 60 * 1000;
 
 async function main() {
   const { db } = await import("../src/db/client");
@@ -42,16 +46,29 @@ async function main() {
     console.log(`✓ active creature: ${activeCreature.name} (${activeCreature.stage}, ${activeCreature.klass ?? "no class"})`);
   }
 
-  // Battle energy
-  const energyWindow = new Date(Date.now() - MAX_ENERGY * REGEN_HOURS * HOUR_MS);
-  const recent = await db
-    .select({ startedAt: battles.startedAt })
-    .from(battles)
-    .where(and(eq(battles.attackerUserId, me.id), gte(battles.startedAt, energyWindow)));
-  const consumed = recent.length;
-  const available = Math.max(0, MAX_ENERGY - consumed);
-  console.log(`▶ battle energy: ${available}/${MAX_ENERGY} (${consumed} attacks in last ${MAX_ENERGY * REGEN_HOURS}h)`);
-  if (available === 0) console.log(`✗ NO ENERGY — wait for regen`);
+  // Per-attacker cooldown
+  let cooldownReady = true;
+  let cooldownMinsLeft = 0;
+  if (ATTACK_COOLDOWN_MS > 0) {
+    const [lastAttack] = await db
+      .select({ startedAt: battles.startedAt })
+      .from(battles)
+      .where(eq(battles.attackerUserId, me.id))
+      .orderBy(desc(battles.startedAt))
+      .limit(1);
+    if (lastAttack) {
+      const elapsed = Date.now() - lastAttack.startedAt.getTime();
+      if (elapsed < ATTACK_COOLDOWN_MS) {
+        cooldownReady = false;
+        cooldownMinsLeft = Math.ceil((ATTACK_COOLDOWN_MS - elapsed) / 60_000);
+      }
+    }
+  }
+  if (cooldownReady) {
+    console.log(`✓ attack cooldown: ready (${ATTACK_COOLDOWN_MINUTES}min between attacks)`);
+  } else {
+    console.log(`✗ attack cooldown: ${cooldownMinsLeft}min left (${ATTACK_COOLDOWN_MINUTES}min between attacks)`);
+  }
 
   // Pair cooldowns
   const cooldownSince = new Date(Date.now() - PAIR_COOLDOWN_MS);
@@ -116,11 +133,11 @@ async function main() {
   }
 
   console.log(`\n▶ summary: ${attackableCount} tiles you can actually challenge right now`);
-  if (attackableCount === 0) {
+  if (attackableCount === 0 || !cooldownReady) {
     console.log(`\n✗ NOTHING ATTACKABLE`);
-    if (available === 0) console.log(`   → reason: no battle energy`);
+    if (!cooldownReady) console.log(`   → reason: attack cooldown (${cooldownMinsLeft}min left)`);
     if (cooldownOpponents.size > 0)
-      console.log(`   → reason: all reachable enemies on 1h cooldown`);
+      console.log(`   → reason: all reachable enemies on 1h pair-cooldown`);
   }
 
   process.exit(0);

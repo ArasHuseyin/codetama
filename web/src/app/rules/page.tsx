@@ -91,7 +91,7 @@ export default function RulesPage() {
           <li>· max HP = <span className="text-fg">100 + STR×5 + LV×10</span></li>
           <li>· crit chance = <span className="text-fg">min(50, 5 + DEX/4)%</span> · crit ×2</li>
           <li>· damage = <span className="text-fg">skill.base × stat_factor × (1 − target.DEX/100)</span></li>
-          <li>· battle energy: 5 / day, regenerates 1 every 4h</li>
+          <li>· attack cooldown: after each challenge you must wait before attacking again</li>
         </ul>
       </Section>
 

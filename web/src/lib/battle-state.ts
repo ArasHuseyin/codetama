@@ -8,11 +8,10 @@ import {
   type Combatant,
 } from "./battle-engine";
 import { availableSkills, getSkill } from "./battle-skills";
-import { MAX_BATTLE_ENERGY, REGEN_HOURS } from "./battle-energy";
+import { attackCooldownMs } from "./battle-cooldown";
 import { canAttackerReach } from "./reachability";
 
 export const BATTLE_PAIR_COOLDOWN_MS = 60 * 60 * 1000;
-const HOUR_MS = 3_600_000;
 const AUTOPLAY_MAX_TURNS = 80;
 
 export interface BattleSnapshot {
@@ -88,15 +87,21 @@ export async function startBattle(args: {
     if (!tileRow) return { error: "tile does not exist" };
     if (tileRow.ownerUserId !== defenderUserId) return { error: "defender no longer owns this tile" };
 
-    // Energy check inside the transaction (was outside, racy).
-    const energyWindowMs = MAX_BATTLE_ENERGY * REGEN_HOURS * HOUR_MS;
-    const energySince = new Date(now.getTime() - energyWindowMs);
-    const [{ count: consumed = 0 } = { count: 0 }] = await tx
-      .select({ count: sql<number>`count(*)::int` })
-      .from(battles)
-      .where(and(eq(battles.attackerUserId, attackerUserId), gte(battles.startedAt, energySince)));
-    if (consumed >= MAX_BATTLE_ENERGY) {
-      return { error: "no battle energy" };
+    // Per-attacker cooldown check inside the transaction. The route-level
+    // check is best-effort; this one (under the advisory lock) is the
+    // authoritative one and prevents two concurrent attacks from both
+    // starting a fight while still on cooldown.
+    const cooldownMs = attackCooldownMs();
+    if (cooldownMs > 0) {
+      const [last] = await tx
+        .select({ startedAt: battles.startedAt })
+        .from(battles)
+        .where(eq(battles.attackerUserId, attackerUserId))
+        .orderBy(desc(battles.startedAt))
+        .limit(1);
+      if (last && now.getTime() - last.startedAt.getTime() < cooldownMs) {
+        return { error: "attack on cooldown" };
+      }
     }
 
     const cooldownSince = new Date(now.getTime() - BATTLE_PAIR_COOLDOWN_MS);
