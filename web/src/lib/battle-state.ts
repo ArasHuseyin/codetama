@@ -1,5 +1,5 @@
 import { db } from "@/db/client";
-import { battles, battleTurns, creatures, events, tiles, users } from "@/db/schema";
+import { accounts, battles, battleTurns, creatures, events, tiles, users } from "@/db/schema";
 import { and, asc, desc, eq, gte, or, sql } from "drizzle-orm";
 import {
   applyMove,
@@ -394,3 +394,32 @@ export async function submitMove(args: {
   if (staleTurn) return { error: "stale turn — somebody beat you to it" };
   return { ok: true, captured };
 }
+
+/**
+ * Plays the battle to completion automatically. Both sides pick a random
+ * ready skill each turn until one is defeated or we hit the safety cap.
+ * The battle is left in `state = "ended"` with the full turn log.
+ */
+export async function simulateBattleToCompletion(battleId: string): Promise<void> {
+  const MAX_TURNS = 80;
+  for (let i = 0; i < MAX_TURNS; i++) {
+    const snap = await getBattleSnapshot(battleId);
+    if (!snap || snap.state !== "active" || !snap.turnOwnerUserId) return;
+
+    const turnOwnerId = snap.turnOwnerUserId;
+    const me = snap.attacker.userId === turnOwnerId ? snap.attacker : snap.defender;
+    const ready = me.skills.filter((s) => s.remainingCd === 0);
+    const pick = ready.length > 0 ? ready[Math.floor(Math.random() * ready.length)]! : me.skills[0];
+    if (!pick) return;
+
+    const result = await submitMove({
+      battleId,
+      actorUserId: turnOwnerId,
+      skillId: pick.id,
+    });
+    if ("error" in result) return;
+  }
+}
+
+void accounts;
+

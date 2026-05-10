@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { startBattle } from "@/lib/battle-state";
+import { startBattle, simulateBattleToCompletion } from "@/lib/battle-state";
 import { computeEnergy } from "@/lib/battle-energy";
 
 export async function POST(req: Request) {
@@ -35,5 +35,7 @@ export async function POST(req: Request) {
     tileY: Math.round(tileY),
   });
   if ("error" in result) return new NextResponse(result.error, { status: 400 });
+  // Auto-play the battle to completion; the client just animates the log.
+  await simulateBattleToCompletion(result.battleId);
   return NextResponse.json({ battleId: result.battleId });
 }

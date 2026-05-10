@@ -1,17 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { BattleScene, type SceneTurn } from "./BattleScene";
-
-interface SkillView {
-  id: string;
-  name: string;
-  cooldown: number;
-  description: string;
-  ultimate: boolean;
-  remainingCd: number;
-}
 
 interface ParticipantView {
   userId: string;
@@ -22,8 +13,6 @@ interface ParticipantView {
   klass: string | null;
   hp: number;
   maxHp: number;
-  cooldowns: Record<string, number>;
-  skills: SkillView[];
 }
 
 interface TurnView {
@@ -46,12 +35,12 @@ interface BattleSnapshot {
   startedAt: string;
   endedAt: string | null;
   winnerUserId: string | null;
-  attacker: ParticipantView;
-  defender: ParticipantView;
+  attacker: ParticipantView & { skills: unknown[] };
+  defender: ParticipantView & { skills: unknown[] };
   log: TurnView[];
 }
 
-const POLL_MS = 1500;
+const PLAYBACK_INTERVAL_MS = 1500;
 
 export function BattleView({
   battleId,
@@ -62,32 +51,29 @@ export function BattleView({
   initial: BattleSnapshot;
   viewerId: string;
 }) {
-  const [snap, setSnap] = useState<BattleSnapshot>(initial);
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const snap = initial;
+  const [playbackIdx, setPlaybackIdx] = useState(-1);
 
+  // Step through the log one turn at a time, animating each.
   useEffect(() => {
-    if (snap.state === "ended") return;
-    const handle = setInterval(() => {
-      fetch(`/api/battle/${battleId}`)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data: BattleSnapshot | null) => {
-          if (data) setSnap(data);
-        })
-        .catch(() => {});
-    }, POLL_MS);
-    return () => clearInterval(handle);
-  }, [battleId, snap.state]);
+    if (snap.log.length === 0) return;
+    if (playbackIdx === -1) {
+      const start = setTimeout(() => setPlaybackIdx(0), 600);
+      return () => clearTimeout(start);
+    }
+    if (playbackIdx >= snap.log.length) return;
+    const handle = setTimeout(() => {
+      setPlaybackIdx((idx) => idx + 1);
+    }, PLAYBACK_INTERVAL_MS);
+    return () => clearTimeout(handle);
+  }, [playbackIdx, snap.log.length]);
 
-  const me = snap.attacker.userId === viewerId ? snap.attacker : snap.defender;
-  const them = snap.attacker.userId === viewerId ? snap.defender : snap.attacker;
-  const myTurn = snap.state === "active" && snap.turnOwnerUserId === viewerId;
+  const playbackDone = playbackIdx >= snap.log.length;
 
-  // Hand the most recent turn to the scene; it tracks turnNo internally and
-  // only animates new ones.
-  const latestTurn = useMemo<SceneTurn | null>(() => {
-    if (snap.log.length === 0) return null;
-    const t = snap.log[snap.log.length - 1]!;
+  // Current turn being shown to the scene.
+  const currentTurn = useMemo<SceneTurn | null>(() => {
+    if (playbackIdx < 0 || playbackIdx >= snap.log.length) return null;
+    const t = snap.log[playbackIdx]!;
     return {
       turnNo: t.turnNo,
       actorUserId: t.actorUserId,
@@ -98,24 +84,17 @@ export function BattleView({
       attackerHpAfter: t.attackerHpAfter,
       defenderHpAfter: t.defenderHpAfter,
     };
-  }, [snap.log]);
+  }, [playbackIdx, snap.log]);
 
-  function useSkill(skillId: string) {
-    setError(null);
-    startTransition(async () => {
-      const res = await fetch(`/api/battle/${battleId}/move`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ skillId }),
-      });
-      if (!res.ok) {
-        setError(await res.text());
-        return;
-      }
-      const refreshed = await fetch(`/api/battle/${battleId}`).then((r) => r.json() as Promise<BattleSnapshot>);
-      setSnap(refreshed);
-    });
-  }
+  // Visible HP follows the most recently animated turn.
+  const lastShown = playbackIdx < 0 ? -1 : Math.min(playbackIdx, snap.log.length - 1);
+  const attHp =
+    lastShown >= 0 ? snap.log[lastShown]!.attackerHpAfter : snap.attacker.maxHp;
+  const defHp =
+    lastShown >= 0 ? snap.log[lastShown]!.defenderHpAfter : snap.defender.maxHp;
+
+  const playbackEnded = playbackDone && snap.state === "ended";
+  const youWon = snap.winnerUserId === viewerId;
 
   return (
     <main className="space-y-6">
@@ -127,15 +106,12 @@ export function BattleView({
           </h1>
         </div>
         <div className="text-sm dim">
-          turn {snap.turnNo}
-          {snap.state === "ended" ? (
-            <span className="ml-2 text-fg">
-              · winner: {snap.winnerUserId === viewerId ? "you" : "opponent"}
+          {playbackEnded ? (
+            <span className={youWon ? "text-fg" : "text-accent"}>
+              · {youWon ? "victory" : "defeated"}
             </span>
-          ) : myTurn ? (
-            <span className="ml-2 text-warn blink">· your move</span>
           ) : (
-            <span className="ml-2 dim">· waiting…</span>
+            <span className="text-fg blink">· auto-battle in progress</span>
           )}
         </div>
       </header>
@@ -144,65 +120,43 @@ export function BattleView({
         attackerId={snap.attacker.userId}
         attackerName={snap.attacker.creatureName}
         attackerKlass={snap.attacker.klass}
-        attackerHp={snap.attacker.hp}
+        attackerHp={attHp}
         attackerMaxHp={snap.attacker.maxHp}
         attackerIsMe={snap.attacker.userId === viewerId}
         defenderId={snap.defender.userId}
         defenderName={snap.defender.creatureName}
         defenderKlass={snap.defender.klass}
-        defenderHp={snap.defender.hp}
+        defenderHp={defHp}
         defenderMaxHp={snap.defender.maxHp}
         defenderIsMe={snap.defender.userId === viewerId}
-        state={snap.state}
-        winnerUserId={snap.winnerUserId}
-        newTurn={latestTurn}
+        state={playbackEnded ? "ended" : "active"}
+        winnerUserId={playbackEnded ? snap.winnerUserId : null}
+        newTurn={currentTurn}
       />
-      <section className="grid md:grid-cols-2 gap-4">
-        <CombatantPanel p={them} accent="enemy" />
-        <CombatantPanel p={me} accent="self" />
-      </section>
 
-      {snap.state === "active" && (
-        <section className="panel space-y-3">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-lg">{myTurn ? "pick your move" : "opponent is choosing"}</h2>
-            {error && <span className="text-accent text-sm">{error}</span>}
+      {playbackEnded && (
+        <section className="panel-tight flex items-center justify-between gap-4 flex-wrap">
+          <div className="text-sm">
+            {youWon ? (
+              <>
+                <span className="text-fg font-bold">victory.</span>{" "}
+                <span className="dim">tile captured if it was a challenge.</span>
+              </>
+            ) : (
+              <>
+                <span className="text-accent font-bold">defeated.</span>{" "}
+                <span className="dim">come back stronger.</span>
+              </>
+            )}
           </div>
-          <div className="grid sm:grid-cols-2 gap-2">
-            {me.skills.map((s) => (
-              <button
-                key={s.id}
-                disabled={!myTurn || s.remainingCd > 0 || isPending}
-                onClick={() => useSkill(s.id)}
-                className={`text-left border p-3 transition ${
-                  myTurn && s.remainingCd === 0
-                    ? "border-fg/60 hover:bg-fg hover:text-bg"
-                    : "border-fgMuted opacity-50 cursor-not-allowed"
-                } ${s.ultimate ? "border-warn/60" : ""}`}
-              >
-                <div className="flex justify-between items-baseline">
-                  <span className="font-bold">{s.name}{s.ultimate ? " ★" : ""}</span>
-                  <span className="text-xs dim">
-                    {s.remainingCd > 0 ? `cd ${s.remainingCd}` : s.cooldown > 0 ? `cd ${s.cooldown}` : "ready"}
-                  </span>
-                </div>
-                <p className="text-xs muted mt-1">{s.description}</p>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {snap.state === "ended" && (
-        <section className="panel-tight">
           <Link href="/map" className="btn">← back to map</Link>
         </section>
       )}
 
       <section className="panel space-y-1 max-h-64 overflow-y-auto">
         <h3 className="text-sm dim mb-2">battle log</h3>
-        {snap.log.length === 0 && <p className="muted text-xs">no moves yet — defender goes first.</p>}
-        {snap.log.slice().reverse().map((t) => (
+        {snap.log.length === 0 && <p className="muted text-xs">no moves recorded.</p>}
+        {snap.log.slice(0, lastShown + 1).reverse().map((t) => (
           <p key={t.turnNo} className="text-sm">
             <span className="dim">[{t.turnNo}]</span>{" "}
             {t.crit && <span className="text-warn">CRIT </span>}
@@ -211,24 +165,5 @@ export function BattleView({
         ))}
       </section>
     </main>
-  );
-}
-
-function CombatantPanel({ p, accent }: { p: ParticipantView; accent: "self" | "enemy" }) {
-  const pct = (p.hp / Math.max(1, p.maxHp)) * 100;
-  const barColor = accent === "self" ? "bg-fg" : "bg-accent";
-  return (
-    <div className="panel space-y-2">
-      <div className="flex justify-between items-baseline">
-        <div>
-          <p className="text-fg font-bold">{p.creatureName}</p>
-          <p className="text-xs dim">@{p.username ?? "anon"} · {p.klass ?? "—"}</p>
-        </div>
-        <p className="text-sm dim">HP <span className="text-fg">{p.hp}</span> / {p.maxHp}</p>
-      </div>
-      <div className="h-2 bg-bg border border-fgMuted relative overflow-hidden">
-        <div className={`h-full ${barColor} transition-all`} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
   );
 }
