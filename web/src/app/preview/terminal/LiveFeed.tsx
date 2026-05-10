@@ -49,23 +49,34 @@ function relTime(then: number, now: number): string {
   return `${Math.floor(hr / 24)}d ago`;
 }
 
-const NOW = Date.now();
-const SEED: FeedEvent[] = [
-  { id: -1, kind: "evo",  text: "@plucky_janet → Sage",            bornAt: NOW - 6_000 },
-  { id: -2, kind: "btl",  text: "@grumpy_bork defeated @snappy_pip", bornAt: NOW - 132_000 },
-  { id: -3, kind: "conn", text: "@cosmic_tofu joined",              bornAt: NOW - 245_000 },
-  { id: -4, kind: "tile", text: "(3,-1) captured by @wibbly_ziggy", bornAt: NOW - 412_000 },
-  { id: -5, kind: "die",  text: "@sneaky_bean starved at Adult",    bornAt: NOW - 783_000 },
-  { id: -6, kind: "evo",  text: "@mighty_mochi → Warlord",          bornAt: NOW - 1_240_000 },
+// Offsets are stable; bornAt is computed at mount time so SSR and CSR
+// render identical empty state, then the client populates the feed.
+const SEED_OFFSETS: Array<{ id: number; kind: EventKind; text: string; offsetMs: number }> = [
+  { id: -1, kind: "evo",  text: "@plucky_janet → Sage",              offsetMs: 6_000 },
+  { id: -2, kind: "btl",  text: "@grumpy_bork defeated @snappy_pip", offsetMs: 132_000 },
+  { id: -3, kind: "conn", text: "@cosmic_tofu joined",                offsetMs: 245_000 },
+  { id: -4, kind: "tile", text: "(3,-1) captured by @wibbly_ziggy",   offsetMs: 412_000 },
+  { id: -5, kind: "die",  text: "@sneaky_bean starved at Adult",      offsetMs: 783_000 },
+  { id: -6, kind: "evo",  text: "@mighty_mochi → Warlord",            offsetMs: 1_240_000 },
 ];
 
 let nextId = 0;
 
 export function LiveFeed() {
-  const [events, setEvents] = useState<FeedEvent[]>(SEED);
-  const [now, setNow] = useState(NOW);
+  // Start empty on the server; populate on mount to avoid hydration mismatch.
+  const [events, setEvents] = useState<FeedEvent[]>([]);
+  const [now, setNow] = useState(0);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    const t = Date.now();
+    setNow(t);
+    setEvents(SEED_OFFSETS.map((s) => ({ id: s.id, kind: s.kind, text: s.text, bornAt: t - s.offsetMs })));
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
     let timer: ReturnType<typeof setTimeout>;
     function schedule() {
       const delay = 3800 + Math.random() * 3500;
@@ -79,12 +90,13 @@ export function LiveFeed() {
     }
     schedule();
     return () => clearTimeout(timer);
-  }, []);
+  }, [mounted]);
 
   useEffect(() => {
+    if (!mounted) return;
     const handle = setInterval(() => setNow(Date.now()), 4000);
     return () => clearInterval(handle);
-  }, []);
+  }, [mounted]);
 
   return (
     <div className={styles.liveFeed} aria-label="Live activity feed">
