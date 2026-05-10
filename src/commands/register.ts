@@ -1,7 +1,7 @@
 import { createInterface } from "node:readline/promises";
 import { spawn } from "node:child_process";
 import { loadOrInit, saveState } from "../core/state.js";
-import { getServerUrl, validateToken } from "../core/sync.js";
+import { getServerUrl, pushSync, validateToken } from "../core/sync.js";
 
 export async function runRegister(): Promise<void> {
   const state = loadOrInit();
@@ -42,6 +42,25 @@ export async function runRegister(): Promise<void> {
   saveState(next);
   process.stdout.write(`✓ Registered as ${result.user.name ?? result.user.id}.\n`);
   process.stdout.write(`  Mode is now: multiplayer\n`);
+
+  // Initial sync — claims a tile on the map and pushes the local creature
+  // to the server. Without this the user wouldn't appear on the map until
+  // they triggered a hook by prompting in Claude Code.
+  process.stdout.write(`  Claiming your tile...\n`);
+  const now = Date.now();
+  const sync = await pushSync(next, now);
+  if (sync.ok) {
+    const after = loadOrInit();
+    if (after.cloud) {
+      saveState({
+        ...after,
+        cloud: { ...after.cloud, lastSyncAt: now, lastSyncError: null },
+      });
+    }
+    process.stdout.write(`✓ Tile claimed. Open ${serverUrl}/map to see your spot.\n`);
+  } else {
+    process.stdout.write(`  (initial sync failed: ${sync.error}. Will retry on next prompt.)\n`);
+  }
 }
 
 function openBrowser(url: string): void {
