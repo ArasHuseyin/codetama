@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
+import { BattleScene, type SceneTurn } from "./BattleScene";
 
 interface SkillView {
   id: string;
@@ -82,6 +83,23 @@ export function BattleView({
   const them = snap.attacker.userId === viewerId ? snap.defender : snap.attacker;
   const myTurn = snap.state === "active" && snap.turnOwnerUserId === viewerId;
 
+  // Hand the most recent turn to the scene; it tracks turnNo internally and
+  // only animates new ones.
+  const latestTurn = useMemo<SceneTurn | null>(() => {
+    if (snap.log.length === 0) return null;
+    const t = snap.log[snap.log.length - 1]!;
+    return {
+      turnNo: t.turnNo,
+      actorUserId: t.actorUserId,
+      damage: t.damage,
+      heal: t.heal,
+      crit: t.crit,
+      log: t.log,
+      attackerHpAfter: t.attackerHpAfter,
+      defenderHpAfter: t.defenderHpAfter,
+    };
+  }, [snap.log]);
+
   function useSkill(skillId: string) {
     setError(null);
     startTransition(async () => {
@@ -122,6 +140,23 @@ export function BattleView({
         </div>
       </header>
 
+      <BattleScene
+        attackerId={snap.attacker.userId}
+        attackerName={snap.attacker.creatureName}
+        attackerKlass={snap.attacker.klass}
+        attackerHp={snap.attacker.hp}
+        attackerMaxHp={snap.attacker.maxHp}
+        attackerIsMe={snap.attacker.userId === viewerId}
+        defenderId={snap.defender.userId}
+        defenderName={snap.defender.creatureName}
+        defenderKlass={snap.defender.klass}
+        defenderHp={snap.defender.hp}
+        defenderMaxHp={snap.defender.maxHp}
+        defenderIsMe={snap.defender.userId === viewerId}
+        state={snap.state}
+        winnerUserId={snap.winnerUserId}
+        newTurn={latestTurn}
+      />
       <section className="grid md:grid-cols-2 gap-4">
         <CombatantPanel p={them} accent="enemy" />
         <CombatantPanel p={me} accent="self" />
