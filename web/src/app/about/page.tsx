@@ -62,7 +62,7 @@ export default function AboutPage() {
       <section className="panel-tight text-sm dim">
         <p>
           contribute / report bugs:{" "}
-          <Link href="https://github.com/codetama/codetama">github.com/codetama/codetama</Link>
+          <Link href="https://github.com/ArasHuseyin/codetama">github.com/ArasHuseyin/codetama</Link>
         </p>
       </section>
     </main>
