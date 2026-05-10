@@ -128,9 +128,10 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
     [tiles, viewerId],
   );
 
-  const reachableSet = useMemo(() => {
+  // Always compute the set of attackable coords from the viewer's tiles.
+  // This is used for the canChallenge button check and for highlighting.
+  const attackableSet = useMemo(() => {
     if (!viewerId) return null;
-    if (!selected || selected.owner.id !== viewerId) return null;
     const set = new Set<string>();
     for (const own of myTiles) {
       for (let dx = -REACH; dx <= REACH; dx++) {
@@ -142,7 +143,12 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
     }
     for (const own of myTiles) set.delete(`${own.x},${own.y}`);
     return set;
-  }, [selected, viewerId, myTiles]);
+  }, [viewerId, myTiles]);
+
+  // The ring overlay only renders when the viewer has selected one of
+  // their own tiles — selecting an enemy shouldn't paint rings.
+  const showReachRings =
+    !!viewerId && !!selected && selected.owner.id === viewerId && !!attackableSet;
 
   const zoomAt = useCallback(
     (nextZoom: number, clientX?: number, clientY?: number) => {
@@ -254,9 +260,9 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
           <rect width="100%" height="100%" fill="url(#grid)" />
 
           {/* Reachability rings sit BEHIND tiles */}
-          {reachableSet &&
+          {showReachRings && attackableSet &&
             tiles
-              .filter((t) => reachableSet.has(`${t.x},${t.y}`))
+              .filter((t) => attackableSet.has(`${t.x},${t.y}`))
               .map((t) => {
                 const px = cx + t.x * cell - cell / 2;
                 const py = cy - t.y * cell - cell / 2;
@@ -287,7 +293,7 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
             const color = KLASS_COLOR[klass] ?? "#7ee787";
             const isSelected = selected?.x === t.x && selected?.y === t.y;
             const isMine = !!viewerId && t.owner.id === viewerId;
-            const isReachable = reachableSet?.has(`${t.x},${t.y}`) ?? false;
+            const isReachable = attackableSet?.has(`${t.x},${t.y}`) ?? false;
 
             const sameOwner = (nx: number, ny: number) =>
               ownerByCoord.get(`${nx},${ny}`) === t.owner.id;
@@ -398,7 +404,7 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
         <div className="absolute top-20 left-3 border border-fgMuted bg-bgPanel/90 px-3 py-2 z-20">
           <p className="text-sm text-fg">world map</p>
           <p className="dim text-xs">drag / scroll / click base</p>
-          {viewerId && reachableSet && (
+          {showReachRings && (
             <p className="text-xs mt-1" style={{ color: "#56d3ff" }}>
               ◇ click any cyan-ring tile to attack
             </p>
@@ -451,7 +457,7 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
         <TileDetail
           tile={selected}
           viewerId={viewerId}
-          isReachable={selected ? reachableSet?.has(`${selected.x},${selected.y}`) ?? false : false}
+          isReachable={selected ? attackableSet?.has(`${selected.x},${selected.y}`) ?? false : false}
           isMine={!!selected && !!viewerId && selected.owner.id === viewerId}
           onClose={() => setSelected(null)}
         />
