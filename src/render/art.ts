@@ -1,103 +1,117 @@
 import type { ClassName, Stage } from "../types.js";
 
 const EGG = `
-  .-""-.
- /  .-. \\
-|  / o \\ |
-|  \\___/ |
- \\      /
-  '----'
+   ╭─────╮
+  ╱       ╲
+ │   ◉     │
+ │   ╶─    │
+  ╲       ╱
+   ╰─────╯
 `;
 
 const BABY = `
-   .---.
-  ( o o )
-   \\_-_/
-   /   \\
-  '-----'
+    ╭───╮
+   ╱◉ ◉ ╲
+   │  ⌣  │
+    ╲___╱
+    │   │
+    ╲___╱
 `;
 
 const ADULT_WARRIOR = `
-   ___,
-  /o o\\__
- ( =T= )_)
-  \\___//
-   |||
-  / | \\
+    ╲╲ ╱╱
+    ╔═══╗
+   ║◉   ◉║
+   ║  □  ║
+    ╚═══╝
+    ▌███▐
+    ╱   ╲
 `;
 
 const ADULT_SAGE = `
-   .-~~~-.
-  /  o o  \\
- |   <>    |
-  \\  '-'  /
-   '~~~~'
-    | |
+    ✦   ✦
+    ╭───╮
+   ╱◉   ◉╲
+   │  ‿  │
+    ╲___╱
+    │   │
+   ─┴   ┴─
 `;
 
 const ADULT_TRICKSTER = `
-   /\\_/\\
-  ( o.^ )
-   > ^ <
-   |_|_|
+    ╱╲ ╱╲
+   ╱◉ ─ ◉╲
+   ╲  ─  ╱
+    ╲___╱
+    │   │
+    │   │
+   ╱╲   ╱╲
 `;
 
 const ADULT_BALANCED = `
-    ___
-   /o o\\
-  ( ==  )
-   \\___/
-   /| |\\
+     ╭─╮
+    ╱◉ ◉╲
+    │ ◇ │
+     ╲─╱
+     │ │
+     │ │
+    ╱─┴─╲
 `;
 
 const ELDER_WARLORD = `
-   .===.
-  / o o \\
- |  ===  |
- |  |||  |
-  \\_____/
-   /| |\\
-   |   |
+    ╲╲▼╱╱
+    ╔═══╗
+   ║◉   ◉║
+   ║  ▼  ║
+    ╚═══╝
+    ▌███▐
+    ▌███▐
 `;
 
 const ELDER_ARCHMAGE = `
-    ___
-   /\\*/\\
-  ( o o )
-  | === |
-   \\_-_/
-    |||
-   *   *
+   ✦ ─ ✦
+    ╭───╮
+   ╱◉   ◉╲
+   │  ◯  │
+    ╲___╱
+     │ │
+    ─┴═┴─
 `;
 
 const ELDER_SHADOW = `
-   .===.
-  ( o.o )
-  ( ___ )
-   \\___/
-   /   \\
+    ╲▔▔▔╱
+    ▕◉ ◉▏
+    ╲ ◡ ╱
+     ╲╱
+    │   │
+    │   │
+   ╱─╲ ╱─╲
 `;
 
 const ELDER_DRUID = `
-    ~~~
-   /o o\\
-  | (_) |
-   \\___/
-   /| |\\
-  ~     ~
+   ❀───❀
+    ╭───╮
+   ╱◉ ◉ ╲
+   │ ◇◇ │
+    ╲___╱
+    │   │
+    ─╧─╧─
 `;
 
 const DEAD = `
-   _____
-  /  x  \\
- |  x x  |
-  \\__~__/
-   R.I.P.
+    ╭───╮
+   ╱✕   ✕╲
+   │  ─  │
+    ╲___╱
+    ─────
+    R.I.P
 `;
 
 export function artFor(stage: Stage, klass: ClassName | null): string[] {
   const raw = pickRaw(stage, klass);
-  return raw.split("\n").filter((line, i, arr) => !(i === 0 && line === "") && !(i === arr.length - 1 && line === ""));
+  return raw
+    .split("\n")
+    .filter((line, i, arr) => !(i === 0 && line === "") && !(i === arr.length - 1 && line === ""));
 }
 
 function pickRaw(stage: Stage, klass: ClassName | null): string {
