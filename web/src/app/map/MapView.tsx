@@ -46,9 +46,14 @@ export function MapView() {
   const [selected, setSelected] = useState<MapTile | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const drag = useRef<{ pointerId: number; startX: number; startY: number; startPanX: number; startPanY: number } | null>(
-    null,
-  );
+  const drag = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startPanX: number;
+    startPanY: number;
+    captured: boolean;
+  } | null>(null);
   const suppressClick = useRef(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ w: 800, h: 500 });
@@ -134,25 +139,37 @@ export function MapView() {
       startY: e.clientY,
       startPanX: pan.x,
       startPanY: pan.y,
+      captured: false,
     };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    // Don't capture pointer yet — only when we detect actual drag movement.
+    // Capturing on pointerdown steals click events from child <g> tile
+    // elements, breaking tile selection.
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
     if (!drag.current || drag.current.pointerId !== e.pointerId) return;
     const dx = e.clientX - drag.current.startX;
     const dy = e.clientY - drag.current.startY;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) suppressClick.current = true;
-    setPan({
-      x: drag.current.startPanX + dx,
-      y: drag.current.startPanY + dy,
-    });
+    if (!drag.current.captured && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+      suppressClick.current = true;
+      drag.current.captured = true;
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
+    if (drag.current.captured) {
+      setPan({
+        x: drag.current.startPanX + dx,
+        y: drag.current.startPanY + dy,
+      });
+    }
   }
 
   function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
     if (drag.current?.pointerId === e.pointerId) {
+      const wasCapturing = drag.current.captured;
       drag.current = null;
-      e.currentTarget.releasePointerCapture(e.pointerId);
+      if (wasCapturing && e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
     }
   }
 
