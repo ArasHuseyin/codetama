@@ -21,6 +21,8 @@ export async function POST() {
 
   const origin = process.env.AUTH_URL ?? "https://codetama.com";
 
+  const useAutomaticTax = process.env.STRIPE_AUTOMATIC_TAX === "1";
+
   const checkoutSession = await stripe().checkout.sessions.create({
     mode: "payment",
     line_items: [{ price: getPriceId(), quantity: 1 }],
@@ -32,7 +34,9 @@ export async function POST() {
       product: "tile_ad",
     },
     customer_email: session.user.email ?? undefined,
-    automatic_tax: { enabled: true },
+    // Stripe Tax requires a configured head-office address in Dashboard
+    // → Tax. Default off; set STRIPE_AUTOMATIC_TAX=1 once Tax is set up.
+    ...(useAutomaticTax ? { automatic_tax: { enabled: true } } : {}),
     billing_address_collection: "auto",
   });
 
