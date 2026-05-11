@@ -228,9 +228,20 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
     zoomAt(zoom * factor, e.clientX, e.clientY);
   }
 
+  // World-space pixel position of the (0,0) origin in the viewport.
+  const originPxX = cx;
+  const originPxY = cy;
+  const majorEvery = 10 * cell;
+
   return (
     <div className="relative h-screen w-screen overflow-hidden">
       <div className="atmosphere absolute inset-0 pointer-events-none" aria-hidden />
+      <div className="scanlines absolute inset-0 pointer-events-none" aria-hidden />
+      <div className="rollingBar absolute inset-0 pointer-events-none" aria-hidden />
+      <span className="cornerChrome cornerTL" aria-hidden />
+      <span className="cornerChrome cornerTR" aria-hidden />
+      <span className="cornerChrome cornerBL" aria-hidden />
+      <span className="cornerChrome cornerBR" aria-hidden />
 
       <div
         ref={containerRef}
@@ -260,8 +271,43 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
             >
               <path d={`M ${cell} 0 L 0 0 0 ${cell}`} fill="none" stroke="rgba(63, 185, 80, 0.07)" strokeWidth="1" />
             </pattern>
+            <pattern
+              id="gridMajor"
+              width={majorEvery}
+              height={majorEvery}
+              patternUnits="userSpaceOnUse"
+              x={(((originPxX - cell / 2) % majorEvery) + majorEvery) % majorEvery}
+              y={(((originPxY - cell / 2) % majorEvery) + majorEvery) % majorEvery}
+            >
+              <path
+                d={`M ${majorEvery} 0 L 0 0 0 ${majorEvery}`}
+                fill="none"
+                stroke="rgba(63, 185, 80, 0.18)"
+                strokeWidth="1"
+              />
+            </pattern>
           </defs>
           <rect width="100%" height="100%" fill="url(#grid)" />
+          <rect width="100%" height="100%" fill="url(#gridMajor)" />
+          {/* Origin axes: emphasize x=0 and y=0 so the map has a true centre. */}
+          <line
+            x1={originPxX}
+            y1={0}
+            x2={originPxX}
+            y2={size.h}
+            stroke="rgba(126, 231, 135, 0.18)"
+            strokeWidth={1}
+            strokeDasharray="2 4"
+          />
+          <line
+            x1={0}
+            y1={originPxY}
+            x2={size.w}
+            y2={originPxY}
+            stroke="rgba(126, 231, 135, 0.18)"
+            strokeWidth={1}
+            strokeDasharray="2 4"
+          />
 
           {/* Reachability rings sit BEHIND tiles */}
           {showReachRings && attackableSet &&
@@ -511,8 +557,76 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
           content: "";
           position: absolute;
           inset: 0;
-          background: radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.65) 100%);
+          background: radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.7) 100%);
           pointer-events: none;
+        }
+        /* Horizontal scanlines (matches the homepage CRT frame). */
+        .scanlines {
+          z-index: 15;
+          background: repeating-linear-gradient(
+            0deg,
+            rgba(0, 0, 0, 0) 0px,
+            rgba(0, 0, 0, 0) 2px,
+            rgba(0, 0, 0, 0.22) 3px,
+            rgba(0, 0, 0, 0) 4px
+          );
+          mix-blend-mode: multiply;
+        }
+        /* Slow phosphor sweep top→bottom — gives the screen life. */
+        .rollingBar {
+          z-index: 14;
+          background: linear-gradient(
+            180deg,
+            transparent 0%,
+            rgba(126, 231, 135, 0.04) 45%,
+            rgba(126, 231, 135, 0.08) 50%,
+            rgba(126, 231, 135, 0.04) 55%,
+            transparent 100%
+          );
+          background-size: 100% 120px;
+          background-repeat: no-repeat;
+          animation: mapRollingBar 9s linear infinite;
+        }
+        @keyframes mapRollingBar {
+          0% {
+            background-position-y: -120px;
+          }
+          100% {
+            background-position-y: calc(100% + 120px);
+          }
+        }
+        /* Frame corner chrome — anchors the viewport like the battle frame does. */
+        .cornerChrome {
+          position: absolute;
+          width: 18px;
+          height: 18px;
+          border-color: rgba(63, 185, 80, 0.55);
+          z-index: 16;
+          pointer-events: none;
+        }
+        .cornerTL {
+          top: 6px;
+          left: 6px;
+          border-top: 1px solid;
+          border-left: 1px solid;
+        }
+        .cornerTR {
+          top: 6px;
+          right: 6px;
+          border-top: 1px solid;
+          border-right: 1px solid;
+        }
+        .cornerBL {
+          bottom: 6px;
+          left: 6px;
+          border-bottom: 1px solid;
+          border-left: 1px solid;
+        }
+        .cornerBR {
+          bottom: 6px;
+          right: 6px;
+          border-bottom: 1px solid;
+          border-right: 1px solid;
         }
       `}</style>
 
