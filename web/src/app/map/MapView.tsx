@@ -50,6 +50,7 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [selected, setSelected] = useState<MapTile | null>(null);
+  const [hovered, setHovered] = useState<{ tile: MapTile; cx: number; cy: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const drag = useRef<{
@@ -209,6 +210,8 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
         x: drag.current.startPanX + dx,
         y: drag.current.startPanY + dy,
       });
+      // Hide hover tooltip while panning — it's distracting.
+      if (hovered) setHovered(null);
     }
   }
 
@@ -365,6 +368,17 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
                   }
                   setSelected(t);
                 }}
+                onPointerEnter={(e) => {
+                  if (e.pointerType !== "mouse") return;
+                  if (drag.current?.captured) return;
+                  setHovered({ tile: t, cx: e.clientX, cy: e.clientY });
+                }}
+                onPointerMove={(e) => {
+                  if (e.pointerType !== "mouse") return;
+                  if (drag.current?.captured) return;
+                  setHovered((h) => (h && h.tile === t ? { tile: t, cx: e.clientX, cy: e.clientY } : h));
+                }}
+                onPointerLeave={() => setHovered((h) => (h?.tile === t ? null : h))}
                 className="cursor-pointer"
               >
                 <rect
@@ -526,6 +540,9 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
           isMine={!!selected && !!viewerId && selected.owner.id === viewerId}
           onClose={() => setSelected(null)}
         />
+        {hovered && hovered.tile !== selected && (
+          <TileHoverTip hover={hovered} viewportWidth={size.w} />
+        )}
       </div>
 
       <style jsx>{`
@@ -751,6 +768,51 @@ function TileDetail({
         </button>
       )}
     </aside>
+  );
+}
+
+function TileHoverTip({
+  hover,
+  viewportWidth,
+}: {
+  hover: { tile: MapTile; cx: number; cy: number };
+  viewportWidth: number;
+}) {
+  const { tile, cx, cy } = hover;
+  const klass = tile.creature?.klass ?? null;
+  const color = klass ? KLASS_COLOR[klass] ?? "#7ee787" : "#7ee787";
+  const TIP_WIDTH = 200;
+  const flipX = cx + 14 + TIP_WIDTH > viewportWidth;
+  const left = flipX ? cx - TIP_WIDTH - 14 : cx + 14;
+  const top = cy + 14;
+
+  return (
+    <div
+      className="pointer-events-none absolute z-20 border bg-bgPanel/95 px-3 py-2 text-xs shadow-lg"
+      style={{
+        left,
+        top,
+        width: TIP_WIDTH,
+        borderColor: color,
+        color,
+      }}
+    >
+      <div className="text-fg text-sm leading-tight">{tile.owner.name ?? "anonymous"}</div>
+      {tile.creature ? (
+        <div className="dim mt-0.5">
+          <span style={{ color }}>{klass ?? "—"}</span>
+          <span className="muted"> · </span>
+          <span className="text-fg">LV {tile.creature.level}</span>
+          <span className="muted"> · </span>
+          <span>{tile.creature.stage}</span>
+        </div>
+      ) : (
+        <div className="muted mt-0.5">no creature</div>
+      )}
+      <div className="muted mt-1">
+        ({tile.x}, {tile.y}) · click for details
+      </div>
+    </div>
   );
 }
 
