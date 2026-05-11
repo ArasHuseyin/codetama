@@ -29,6 +29,25 @@ interface BBox {
   maxY: number;
 }
 
+interface Cluster {
+  ownerId: string;
+  size: number;
+  labelTile: MapTile;
+}
+
+// One small glyph per class — drawn in cluster outposts as a quick
+// "what is this territory" signal without the full per-tile label.
+const KLASS_GLYPH: Record<string, string> = {
+  warrior: "⚔",
+  warlord: "⚔",
+  sage: "✦",
+  archmage: "✦",
+  trickster: "◆",
+  shadow: "◆",
+  balanced: "✺",
+  druid: "✺",
+};
+
 const TILE = 56;
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 2.2;
@@ -125,6 +144,68 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
     const m = new Map<string, string>();
     for (const t of tiles) m.set(`${t.x},${t.y}`, t.owner.id);
     return m;
+  }, [tiles]);
+
+  // Flood-fill orthogonally-connected same-owner tiles into clusters.
+  // Cluster ≥2 gets a fortified outer border, one label on the most
+  // central tile (the "HQ"), and small class glyphs on the outposts.
+  const clusterByKey = useMemo(() => {
+    const tileByKey = new Map<string, MapTile>();
+    for (const t of tiles) tileByKey.set(`${t.x},${t.y}`, t);
+
+    const out = new Map<string, Cluster>();
+    const visited = new Set<string>();
+    for (const start of tiles) {
+      const startKey = `${start.x},${start.y}`;
+      if (visited.has(startKey)) continue;
+
+      const members: MapTile[] = [];
+      const queue: MapTile[] = [start];
+      visited.add(startKey);
+      while (queue.length > 0) {
+        const t = queue.shift()!;
+        members.push(t);
+        for (const [dx, dy] of [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ] as const) {
+          const nkey = `${t.x + dx},${t.y + dy}`;
+          if (visited.has(nkey)) continue;
+          const n = tileByKey.get(nkey);
+          if (!n || n.owner.id !== start.owner.id) continue;
+          visited.add(nkey);
+          queue.push(n);
+        }
+      }
+
+      let sx = 0;
+      let sy = 0;
+      for (const m of members) {
+        sx += m.x;
+        sy += m.y;
+      }
+      const cxAvg = sx / members.length;
+      const cyAvg = sy / members.length;
+      let labelTile = members[0]!;
+      let bestDist = Infinity;
+      for (const m of members) {
+        const d = (m.x - cxAvg) ** 2 + (m.y - cyAvg) ** 2;
+        if (d < bestDist) {
+          bestDist = d;
+          labelTile = m;
+        }
+      }
+
+      const cluster: Cluster = {
+        ownerId: start.owner.id,
+        size: members.length,
+        labelTile,
+      };
+      for (const m of members) out.set(`${m.x},${m.y}`, cluster);
+    }
+    return out;
   }, [tiles]);
 
   // My tiles + reachability set when viewer's own tile is selected.
@@ -355,7 +436,15 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
             const bottom = !sameOwner(t.x, t.y - 1);
             const left = !sameOwner(t.x - 1, t.y);
 
-            const strokeWidth = isSelected ? 3 : isReachable ? 2 : 1.5;
+            const cluster = clusterByKey.get(`${t.x},${t.y}`);
+            const inCluster = !!cluster && cluster.size >= 2;
+            const isHq = inCluster && cluster!.labelTile === t;
+            const glyph = KLASS_GLYPH[klass] ?? "·";
+
+            // Fortify the outer cluster border so big territories read
+            // as a single solid shape rather than a row of squares.
+            const baseStroke = isSelected ? 3 : isReachable ? 2 : 1.5;
+            const strokeWidth = inCluster ? baseStroke + 1 : baseStroke;
 
             return (
               <g
@@ -417,55 +506,81 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
                   <line x1={px} y1={py} x2={px} y2={py + cell - 2} stroke={color} strokeWidth={strokeWidth} />
                 )}
 
-                <text
-                  x={px + cell / 2}
-                  y={py + Math.max(14, cell * 0.22)}
-                  textAnchor="middle"
-                  fill={color}
-                  fontFamily="JetBrains Mono, monospace"
-                  fontSize={Math.max(8, Math.min(11, cell * 0.18))}
-                >
-                  {(t.owner.name ?? "anon").slice(0, 8)}
-                  {t.ad && <tspan fill="#d29922" fontSize={Math.max(7, cell * 0.16)}> ★</tspan>}
-                </text>
-                {t.ad?.text && (
+                {/* Outpost: just a class glyph, no labels. */}
+                {inCluster && !isHq && (
                   <text
                     x={px + cell / 2}
-                    y={py + Math.max(26, cell * 0.4)}
+                    y={py + cell / 2 + cell * 0.12}
                     textAnchor="middle"
-                    fill="#d29922"
+                    fill={color}
                     fontFamily="JetBrains Mono, monospace"
-                    fontSize={Math.max(7, Math.min(9, cell * 0.15))}
-                    fontStyle="italic"
-                    opacity="0.95"
+                    fontSize={Math.max(14, Math.min(22, cell * 0.42))}
+                    opacity="0.75"
                   >
-                    &quot;{t.ad.text.slice(0, 16)}&quot;
+                    {glyph}
+                    {t.ad && <tspan fill="#d29922"> ★</tspan>}
                   </text>
                 )}
-                {t.creature && (
+
+                {/* Solo tile or cluster HQ: full label set. */}
+                {(!inCluster || isHq) && (
                   <>
                     <text
                       x={px + cell / 2}
-                      y={py + cell / 2 + (t.ad?.text ? 12 : 4)}
+                      y={py + Math.max(14, cell * 0.22)}
                       textAnchor="middle"
                       fill={color}
                       fontFamily="JetBrains Mono, monospace"
-                      fontSize={Math.max(9, Math.min(13, cell * 0.2))}
-                      fontWeight="bold"
+                      fontSize={Math.max(8, Math.min(11, cell * 0.18))}
                     >
-                      LV {t.creature.level}
+                      {(t.owner.name ?? "anon").slice(0, 8)}
+                      {isHq && (
+                        <tspan fill={color} opacity="0.7">
+                          {" "}·{cluster!.size}
+                        </tspan>
+                      )}
+                      {t.ad && <tspan fill="#d29922" fontSize={Math.max(7, cell * 0.16)}> ★</tspan>}
                     </text>
-                    <text
-                      x={px + cell / 2}
-                      y={py + cell - Math.max(7, cell * 0.15)}
-                      textAnchor="middle"
-                      fill={color}
-                      fontFamily="JetBrains Mono, monospace"
-                      fontSize={Math.max(8, Math.min(10, cell * 0.16))}
-                      opacity="0.8"
-                    >
-                      {t.creature.stage}
-                    </text>
+                    {t.ad?.text && (
+                      <text
+                        x={px + cell / 2}
+                        y={py + Math.max(26, cell * 0.4)}
+                        textAnchor="middle"
+                        fill="#d29922"
+                        fontFamily="JetBrains Mono, monospace"
+                        fontSize={Math.max(7, Math.min(9, cell * 0.15))}
+                        fontStyle="italic"
+                        opacity="0.95"
+                      >
+                        &quot;{t.ad.text.slice(0, 16)}&quot;
+                      </text>
+                    )}
+                    {t.creature && (
+                      <>
+                        <text
+                          x={px + cell / 2}
+                          y={py + cell / 2 + (t.ad?.text ? 12 : 4)}
+                          textAnchor="middle"
+                          fill={color}
+                          fontFamily="JetBrains Mono, monospace"
+                          fontSize={Math.max(9, Math.min(13, cell * 0.2))}
+                          fontWeight="bold"
+                        >
+                          LV {t.creature.level}
+                        </text>
+                        <text
+                          x={px + cell / 2}
+                          y={py + cell - Math.max(7, cell * 0.15)}
+                          textAnchor="middle"
+                          fill={color}
+                          fontFamily="JetBrains Mono, monospace"
+                          fontSize={Math.max(8, Math.min(10, cell * 0.16))}
+                          opacity="0.8"
+                        >
+                          {t.creature.stage}
+                        </text>
+                      </>
+                    )}
                   </>
                 )}
               </g>
