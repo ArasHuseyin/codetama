@@ -8,13 +8,17 @@ export async function POST(req: Request) {
   if (!session?.user?.id) return new NextResponse("unauthorized", { status: 401 });
 
   const body = (await req.json().catch(() => null)) as
-    | { defenderUserId?: string; tileX?: number; tileY?: number }
+    | { defenderUserId?: string; attackerCreatureId?: string; tileX?: number; tileY?: number }
     | null;
   const defenderUserId = body?.defenderUserId;
+  const attackerCreatureId = body?.attackerCreatureId;
   const tileX = body?.tileX;
   const tileY = body?.tileY;
   if (!defenderUserId || typeof defenderUserId !== "string") {
     return new NextResponse("defenderUserId required", { status: 400 });
+  }
+  if (attackerCreatureId !== undefined && typeof attackerCreatureId !== "string") {
+    return new NextResponse("attackerCreatureId must be a string", { status: 400 });
   }
   if (typeof tileX !== "number" || typeof tileY !== "number" || !Number.isFinite(tileX) || !Number.isFinite(tileY)) {
     return new NextResponse("tile coordinates required", { status: 400 });
@@ -35,6 +39,7 @@ export async function POST(req: Request) {
   const result = await startBattle({
     attackerUserId: session.user.id,
     defenderUserId,
+    attackerCreatureId,
     tileX: Math.round(tileX),
     tileY: Math.round(tileY),
   });

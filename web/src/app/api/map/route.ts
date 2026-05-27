@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { db } from "@/db/client";
 import { creatures, tileAds, tiles, users } from "@/db/schema";
 import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
@@ -16,6 +17,7 @@ const MAX_BBOX_SPAN = 200;
 const MAX_TILES = 1_000;
 
 export async function GET(req: Request) {
+  const session = await auth();
   const parsed = parseBBox(new URL(req.url).searchParams.get("bbox"));
   if (parsed instanceof NextResponse) return parsed;
 
@@ -60,9 +62,8 @@ export async function GET(req: Request) {
     .orderBy(asc(tiles.x), asc(tiles.y))
     .limit(MAX_TILES * 4);
 
-  // Defensive dedup: even though sync now keeps only one active creature
-  // per user, legacy rows in prod may still have multiple actives. Pick the
-  // most-recently-born active creature per (x, y).
+  // Defensive dedup: legacy rows in prod may still have multiple active
+  // creatures. Always show the strongest creature for the tile owner.
   const byTile = new Map<string, typeof rows[number]>();
   for (const r of rows) {
     const key = `${r.x},${r.y}`;
@@ -71,12 +72,32 @@ export async function GET(req: Request) {
       byTile.set(key, r);
       continue;
     }
-    const existingTs = existing.bornAt?.getTime() ?? 0;
-    const incomingTs = r.bornAt?.getTime() ?? 0;
-    if (incomingTs > existingTs) byTile.set(key, r);
+    if (isStrongerTileCreature(r, existing)) byTile.set(key, r);
   }
 
   const deduped = Array.from(byTile.values()).slice(0, MAX_TILES);
+  const viewerCreatures = session?.user?.id
+    ? await db
+        .select({
+          id: creatures.id,
+          name: creatures.name,
+          stage: creatures.stage,
+          klass: creatures.klass,
+          str: creatures.str,
+          intStat: creatures.intStat,
+          dex: creatures.dex,
+          hunger: creatures.hunger,
+          bornAt: creatures.bornAt,
+        })
+        .from(creatures)
+        .where(and(eq(creatures.userId, session.user.id), eq(creatures.active, true)))
+    : [];
+
+  viewerCreatures.sort((a, b) => {
+    const powerDelta = creatureLevel(b) - creatureLevel(a);
+    if (powerDelta !== 0) return powerDelta;
+    return b.bornAt.getTime() - a.bornAt.getTime();
+  });
 
   return NextResponse.json({
     tiles: deduped.map((r) => ({
@@ -107,7 +128,46 @@ export async function GET(req: Request) {
             }
           : null,
     })),
+    viewerCreatures: viewerCreatures.map((c) => ({
+      id: c.id,
+      name: c.name,
+      stage: c.stage,
+      klass: c.klass,
+      level: creatureLevel(c),
+      stats: { str: c.str, int: c.intStat, dex: c.dex },
+      hunger: c.hunger,
+    })),
   });
+}
+
+function creatureLevel(c: { str: number | null; intStat: number | null; dex: number | null }): number {
+  return (c.str ?? 1) + (c.intStat ?? 1) + (c.dex ?? 1);
+}
+
+function isStrongerTileCreature(
+  incoming: {
+    creatureId: string | null;
+    str: number | null;
+    intStat: number | null;
+    dex: number | null;
+    bornAt: Date | null;
+  },
+  existing: {
+    creatureId: string | null;
+    str: number | null;
+    intStat: number | null;
+    dex: number | null;
+    bornAt: Date | null;
+  },
+): boolean {
+  if (incoming.creatureId && !existing.creatureId) return true;
+  if (!incoming.creatureId) return false;
+
+  const incomingLevel = creatureLevel(incoming);
+  const existingLevel = creatureLevel(existing);
+  if (incomingLevel !== existingLevel) return incomingLevel > existingLevel;
+
+  return (incoming.bornAt?.getTime() ?? 0) > (existing.bornAt?.getTime() ?? 0);
 }
 
 function parseBBox(raw: string | null): BBox | null | NextResponse {

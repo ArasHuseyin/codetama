@@ -2,20 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+interface CreatureSummary {
+  id: string;
+  name: string;
+  stage: string;
+  klass: string | null;
+  level: number;
+  stats: { str: number | null; int: number | null; dex: number | null };
+  hunger: number;
+}
+
 interface MapTile {
   x: number;
   y: number;
   acquiredAt: string;
   owner: { id: string; name: string | null; image: string | null };
-  creature: {
-    id: string;
-    name: string;
-    stage: string;
-    klass: string | null;
-    level: number;
-    stats: { str: number | null; int: number | null; dex: number | null };
-    hunger: number;
-  } | null;
+  creature: CreatureSummary | null;
   ad: {
     text: string | null;
     url: string | null;
@@ -70,6 +72,7 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
   const [zoom, setZoom] = useState(1);
   const [selected, setSelected] = useState<MapTile | null>(null);
   const [hovered, setHovered] = useState<{ tile: MapTile; cx: number; cy: number } | null>(null);
+  const [viewerCreatures, setViewerCreatures] = useState<CreatureSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const drag = useRef<{
@@ -109,8 +112,9 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
         if (!r.ok) throw new Error(`map request failed: ${r.status}`);
         return r.json();
       })
-      .then((d: { tiles: MapTile[] }) => {
+      .then((d: { tiles: MapTile[]; viewerCreatures?: CreatureSummary[] }) => {
         setTiles(d.tiles);
+        setViewerCreatures(d.viewerCreatures ?? []);
         setSelected((current) =>
           current ? d.tiles.find((tile) => tile.x === current.x && tile.y === current.y) ?? current : null,
         );
@@ -118,6 +122,7 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
       .catch((e: Error) => {
         if (e.name !== "AbortError") {
           setTiles([]);
+          setViewerCreatures([]);
           setError("map unavailable");
         }
       })
@@ -345,6 +350,12 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
       >
         <svg width={size.w} height={size.h} className="block relative z-10">
           <defs>
+            <filter id="tileGlow" x="-30%" y="-30%" width="160%" height="160%">
+              <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor="#7ee787" floodOpacity="0.28" />
+            </filter>
+            <filter id="adGlow" x="-30%" y="-30%" width="160%" height="160%">
+              <feDropShadow dx="0" dy="0" stdDeviation="2" floodColor="#d29922" floodOpacity="0.45" />
+            </filter>
             <pattern
               id="grid"
               width={cell}
@@ -478,7 +489,36 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
                   fill={color}
                   fillOpacity={isSelected ? 0.34 : isMine ? 0.26 : 0.16}
                   stroke="none"
+                  rx={Math.max(0, Math.min(6, cell * 0.08))}
+                  style={{
+                    filter: isSelected || isReachable ? "url(#tileGlow)" : undefined,
+                  }}
                 />
+                <rect
+                  x={px + 4}
+                  y={py + 4}
+                  width={Math.max(0, cell - 10)}
+                  height={Math.max(0, cell - 10)}
+                  fill="none"
+                  stroke="rgba(255,255,255,0.12)"
+                  strokeWidth={1}
+                  opacity={cell > 32 ? 1 : 0}
+                  pointerEvents="none"
+                />
+                {(isSelected || isReachable) && (
+                  <rect
+                    x={px + 2}
+                    y={py + 2}
+                    width={cell - 6}
+                    height={cell - 6}
+                    fill="none"
+                    stroke={isSelected ? "#f0f6fc" : "#56d3ff"}
+                    strokeWidth={isSelected ? 1.5 : 1}
+                    strokeDasharray={isSelected ? undefined : "3 3"}
+                    opacity={isSelected ? 0.9 : 0.72}
+                    pointerEvents="none"
+                  />
+                )}
                 {top && (
                   <line x1={px} y1={py} x2={px + cell - 2} y2={py} stroke={color} strokeWidth={strokeWidth} />
                 )}
@@ -521,6 +561,31 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
                     {t.ad && <tspan fill="#d29922"> ★</tspan>}
                   </text>
                 )}
+                {inCluster && !isHq && t.ad?.text && cell >= 42 && (
+                  <>
+                    <rect
+                      x={px + 5}
+                      y={py + cell - Math.max(15, cell * 0.26)}
+                      width={cell - 12}
+                      height={Math.max(11, cell * 0.18)}
+                      fill="rgba(210,153,34,0.16)"
+                      stroke="#d29922"
+                      strokeWidth={0.75}
+                      filter="url(#adGlow)"
+                    />
+                    <text
+                      x={px + cell / 2}
+                      y={py + cell - Math.max(6, cell * 0.11)}
+                      textAnchor="middle"
+                      fill="#ffd166"
+                      fontFamily="JetBrains Mono, monospace"
+                      fontSize={Math.max(6, Math.min(8, cell * 0.13))}
+                      fontWeight="bold"
+                    >
+                      AD {t.ad.text.slice(0, 8)}
+                    </text>
+                  </>
+                )}
 
                 {/* Solo tile or cluster HQ: full label set. */}
                 {(!inCluster || isHq) && (
@@ -542,18 +607,29 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
                       {t.ad && <tspan fill="#d29922" fontSize={Math.max(7, cell * 0.16)}> ★</tspan>}
                     </text>
                     {t.ad?.text && (
-                      <text
-                        x={px + cell / 2}
-                        y={py + Math.max(26, cell * 0.4)}
-                        textAnchor="middle"
-                        fill="#d29922"
-                        fontFamily="JetBrains Mono, monospace"
-                        fontSize={Math.max(7, Math.min(9, cell * 0.15))}
-                        fontStyle="italic"
-                        opacity="0.95"
-                      >
-                        &quot;{t.ad.text.slice(0, 16)}&quot;
-                      </text>
+                      <>
+                        <rect
+                          x={px + 5}
+                          y={py + Math.max(20, cell * 0.31)}
+                          width={cell - 12}
+                          height={Math.max(12, cell * 0.2)}
+                          fill="rgba(210,153,34,0.16)"
+                          stroke="#d29922"
+                          strokeWidth={0.75}
+                          filter="url(#adGlow)"
+                        />
+                        <text
+                          x={px + cell / 2}
+                          y={py + Math.max(29, cell * 0.44)}
+                          textAnchor="middle"
+                          fill="#ffd166"
+                          fontFamily="JetBrains Mono, monospace"
+                          fontSize={Math.max(7, Math.min(9, cell * 0.15))}
+                          fontWeight="bold"
+                        >
+                          AD {t.ad.text.slice(0, isHq ? 12 : 14)}
+                        </text>
+                      </>
                     )}
                     {t.creature && (
                       <>
@@ -651,6 +727,7 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
         <TileDetail
           tile={selected}
           viewerId={viewerId}
+          viewerCreatures={viewerCreatures}
           isReachable={selected ? attackableSet?.has(`${selected.x},${selected.y}`) ?? false : false}
           isMine={!!selected && !!viewerId && selected.owner.id === viewerId}
           onClose={() => setSelected(null)}
@@ -775,32 +852,48 @@ export function MapView({ viewerId }: { viewerId: string | null }) {
 function TileDetail({
   tile,
   viewerId,
+  viewerCreatures,
   isReachable,
   isMine,
   onClose,
 }: {
   tile: MapTile | null;
   viewerId: string | null;
+  viewerCreatures: CreatureSummary[];
   isReachable: boolean;
   isMine: boolean;
   onClose: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attackerCreatureId, setAttackerCreatureId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAttackerCreatureId((current) => {
+      if (current && viewerCreatures.some((creature) => creature.id === current)) return current;
+      return viewerCreatures[0]?.id ?? null;
+    });
+  }, [viewerCreatures]);
 
   if (!tile) return null;
 
-  const canChallenge = !!viewerId && !isMine && !!tile.creature && isReachable;
+  const selectedAttacker = viewerCreatures.find((creature) => creature.id === attackerCreatureId) ?? null;
+  const canChallenge = !!viewerId && !isMine && !!tile.creature && isReachable && !!selectedAttacker;
 
   async function challenge() {
-    if (!tile) return;
+    if (!tile || !selectedAttacker) return;
     setBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/battle/start", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ defenderUserId: tile.owner.id, tileX: tile.x, tileY: tile.y }),
+        body: JSON.stringify({
+          defenderUserId: tile.owner.id,
+          attackerCreatureId: selectedAttacker.id,
+          tileX: tile.x,
+          tileY: tile.y,
+        }),
       });
       if (!res.ok) {
         setError(await res.text());
@@ -873,14 +966,41 @@ function TileDetail({
       ) : !viewerId ? (
         <p className="text-xs muted">sign in to challenge.</p>
       ) : (
-        <button
-          onClick={challenge}
-          disabled={busy || !canChallenge}
-          className={`btn w-full ${!canChallenge ? "opacity-40 cursor-not-allowed" : ""}`}
-          title={!isReachable ? "not within 2 king-steps of one of your tiles" : undefined}
-        >
-          {busy ? "starting…" : "⚔ challenge"}
-        </button>
+        <>
+          {viewerCreatures.length > 0 ? (
+            <label className="block space-y-1">
+              <span className="text-xs dim">attacker</span>
+              <select
+                value={attackerCreatureId ?? ""}
+                onChange={(e) => setAttackerCreatureId(e.target.value || null)}
+                className="w-full border border-fgMuted bg-bg px-2 py-2 text-sm text-fg outline-none focus:border-fg"
+                disabled={busy}
+              >
+                {viewerCreatures.map((creature) => (
+                  <option key={creature.id} value={creature.id}>
+                    {creature.name} | LV {creature.level} | {creature.klass ?? "-"} / {creature.stage}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <p className="text-xs muted">you have no active creature.</p>
+          )}
+          {selectedAttacker && (
+            <p className="text-xs dim">
+              STR {selectedAttacker.stats.str ?? 1} / INT {selectedAttacker.stats.int ?? 1} / DEX{" "}
+              {selectedAttacker.stats.dex ?? 1}
+            </p>
+          )}
+          <button
+            onClick={challenge}
+            disabled={busy || !canChallenge}
+            className={`btn w-full ${!canChallenge ? "opacity-40 cursor-not-allowed" : ""}`}
+            title={!isReachable ? "not within 2 king-steps of one of your tiles" : undefined}
+          >
+            {busy ? "starting..." : "challenge"}
+          </button>
+        </>
       )}
     </aside>
   );

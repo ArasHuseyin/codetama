@@ -56,13 +56,26 @@ function statsOf(c: { str: number; intStat: number; dex: number }) {
   return { str: c.str, int: c.intStat, dex: c.dex };
 }
 
+function levelOf(c: { str: number; intStat: number; dex: number }): number {
+  return c.str + c.intStat + c.dex;
+}
+
+function strongestCreature<T extends { str: number; intStat: number; dex: number; bornAt: Date }>(rows: T[]): T | undefined {
+  return rows.slice().sort((a, b) => {
+    const levelDelta = levelOf(b) - levelOf(a);
+    if (levelDelta !== 0) return levelDelta;
+    return b.bornAt.getTime() - a.bornAt.getTime();
+  })[0];
+}
+
 export async function startBattle(args: {
   attackerUserId: string;
   defenderUserId: string;
+  attackerCreatureId?: string;
   tileX: number;
   tileY: number;
 }): Promise<{ battleId: string } | { error: string }> {
-  const { attackerUserId, defenderUserId, tileX, tileY } = args;
+  const { attackerUserId, defenderUserId, attackerCreatureId, tileX, tileY } = args;
   if (attackerUserId === defenderUserId) return { error: "cannot battle yourself" };
 
   // Reachability is read-only and uses several joins; check it before grabbing the lock.
@@ -124,19 +137,24 @@ export async function startBattle(args: {
       return { error: "this matchup is on cooldown — try again later" };
     }
 
-    const [attackerCreature] = await tx
+    const attackerCandidates = await tx
       .select()
       .from(creatures)
-      .where(and(eq(creatures.userId, attackerUserId), eq(creatures.active, true)))
-      .limit(1);
+      .where(and(eq(creatures.userId, attackerUserId), eq(creatures.active, true)));
 
-    const [defenderCreature] = await tx
+    const defenderCandidates = await tx
       .select()
       .from(creatures)
-      .where(and(eq(creatures.userId, defenderUserId), eq(creatures.active, true)))
-      .limit(1);
+      .where(and(eq(creatures.userId, defenderUserId), eq(creatures.active, true)));
 
-    if (!attackerCreature) return { error: "you have no active creature" };
+    const attackerCreature = attackerCreatureId
+      ? attackerCandidates.find((c) => c.id === attackerCreatureId)
+      : strongestCreature(attackerCandidates);
+    const defenderCreature = strongestCreature(defenderCandidates);
+
+    if (!attackerCreature) {
+      return { error: attackerCreatureId ? "selected attacker creature unavailable" : "you have no active creature" };
+    }
     if (!defenderCreature) return { error: "defender has no active creature" };
 
     const attackerStats = statsOf(attackerCreature);
