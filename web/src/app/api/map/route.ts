@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/db/client";
 import { creatures, tileAds, tiles, users } from "@/db/schema";
-import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, lte, ne, sql } from "drizzle-orm";
 
 export const revalidate = 0;
 
@@ -55,7 +55,7 @@ export async function GET(req: Request) {
     .innerJoin(users, eq(users.id, tiles.ownerUserId))
     .leftJoin(
       creatures,
-      and(eq(creatures.userId, tiles.ownerUserId), eq(creatures.active, true)),
+      and(eq(creatures.userId, tiles.ownerUserId), ne(creatures.stage, "dead"), isNull(creatures.diedAt)),
     )
     .leftJoin(tileAds, eq(tileAds.userId, tiles.ownerUserId))
     .where(viewport)
@@ -90,7 +90,7 @@ export async function GET(req: Request) {
           bornAt: creatures.bornAt,
         })
         .from(creatures)
-        .where(and(eq(creatures.userId, session.user.id), eq(creatures.active, true)))
+        .where(and(eq(creatures.userId, session.user.id), ne(creatures.stage, "dead"), isNull(creatures.diedAt)))
     : [];
 
   viewerCreatures.sort((a, b) => {

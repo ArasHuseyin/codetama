@@ -1,6 +1,6 @@
 import { db } from "@/db/client";
 import { accounts, battles, battleTurns, creatures, events, tiles, users } from "@/db/schema";
-import { and, asc, desc, eq, gte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, ne, or, sql } from "drizzle-orm";
 import {
   applyMove,
   isOver,
@@ -140,12 +140,12 @@ export async function startBattle(args: {
     const attackerCandidates = await tx
       .select()
       .from(creatures)
-      .where(and(eq(creatures.userId, attackerUserId), eq(creatures.active, true)));
+      .where(and(eq(creatures.userId, attackerUserId), ne(creatures.stage, "dead"), isNull(creatures.diedAt)));
 
     const defenderCandidates = await tx
       .select()
       .from(creatures)
-      .where(and(eq(creatures.userId, defenderUserId), eq(creatures.active, true)));
+      .where(and(eq(creatures.userId, defenderUserId), ne(creatures.stage, "dead"), isNull(creatures.diedAt)));
 
     const attackerCreature = attackerCreatureId
       ? attackerCandidates.find((c) => c.id === attackerCreatureId)
@@ -153,9 +153,9 @@ export async function startBattle(args: {
     const defenderCreature = strongestCreature(defenderCandidates);
 
     if (!attackerCreature) {
-      return { error: attackerCreatureId ? "selected attacker creature unavailable" : "you have no active creature" };
+      return { error: attackerCreatureId ? "selected attacker creature unavailable" : "you have no living creature" };
     }
-    if (!defenderCreature) return { error: "defender has no active creature" };
+    if (!defenderCreature) return { error: "defender has no living creature" };
 
     const attackerStats = statsOf(attackerCreature);
     const defenderStats = statsOf(defenderCreature);
