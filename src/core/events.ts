@@ -1,8 +1,6 @@
 import { level, type Creature, type State, type CreatureSnapshot, type ViewState } from "../types.js";
 
 export interface EventLine {
-  /** A stable id used for one-shot banner acknowledgement. */
-  id: string;
   kind: "prompts" | "stats" | "evolved" | "locked" | "died" | "hatched";
   text: string;
 }
@@ -34,7 +32,6 @@ export function computeEvents(state: State): EventLine[] {
 
     if (!prev) {
       lines.push({
-        id: `hatched:${c.id}`,
         kind: "hatched",
         text: `🥚 ${c.name} hatched`,
       });
@@ -45,7 +42,6 @@ export function computeEvents(state: State): EventLine[] {
 
     if (prev.stage !== "dead" && c.stage === "dead") {
       lines.push({
-        id: `died:${c.id}:${c.diedAt ?? 0}`,
         kind: "died",
         text: `💀 ${c.name} died`,
       });
@@ -54,7 +50,6 @@ export function computeEvents(state: State): EventLine[] {
 
     if (prev.stage !== c.stage) {
       lines.push({
-        id: `evolved:${c.id}:${prev.stage}->${c.stage}`,
         kind: "evolved",
         text: `${c.name}: ${prev.stage} → ${c.stage}${c.klass ? ` [${c.klass}]` : ""}`,
       });
@@ -62,7 +57,6 @@ export function computeEvents(state: State): EventLine[] {
 
     if (!prev.locked && c.locked) {
       lines.push({
-        id: `locked:${c.id}`,
         kind: "locked",
         text: `★ ${c.name} peaked — locked at Elder`,
       });
@@ -71,7 +65,6 @@ export function computeEvents(state: State): EventLine[] {
     const promptDelta = c.promptsTotal - prev.promptsTotal;
     if (promptDelta > 0) {
       lines.push({
-        id: `prompts:${c.id}:${c.promptsTotal}`,
         kind: "prompts",
         text: `+${promptDelta} prompts`,
       });
@@ -80,7 +73,6 @@ export function computeEvents(state: State): EventLine[] {
     const statDelta = level(c) - prev.statsSum;
     if (statDelta > 0) {
       lines.push({
-        id: `stats:${c.id}:${level(c)}`,
         kind: "stats",
         text: `+${statDelta} stats`,
       });
@@ -94,7 +86,6 @@ export function withUpdatedView(state: State, now: number): State {
   const view: ViewState = {
     lastViewedAt: now,
     snapshots: snapshotState(state),
-    acknowledgedEventIds: state.view?.acknowledgedEventIds ?? [],
   };
   return { ...state, view };
 }

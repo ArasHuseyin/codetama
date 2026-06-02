@@ -68,7 +68,7 @@ function main(): void {
       runUninstall();
       return;
     case "reset":
-      runReset(force);
+      void runReset(force);
       return;
     case "view":
       runView();

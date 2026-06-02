@@ -2,6 +2,31 @@ import { createInterface } from "node:readline/promises";
 import { loadOrInit, saveState } from "../core/state.js";
 import { getServerUrl, pushSync, validateToken } from "../core/sync.js";
 import { openBrowser } from "../util/open-browser.js";
+import type { State } from "../types.js";
+
+/**
+ * Pure: produce the multiplayer state for a freshly validated token. Keeps the
+ * existing creatures/history; only flips the mode and attaches cloud config.
+ */
+export function buildRegisteredState(
+  state: State,
+  serverUrl: string,
+  token: string,
+  user: { id: string; name: string | null },
+): State {
+  return {
+    ...state,
+    mode: "multiplayer",
+    cloud: {
+      serverUrl,
+      token,
+      userId: user.id,
+      username: user.name,
+      lastSyncAt: null,
+      lastSyncError: null,
+    },
+  };
+}
 
 export async function runRegister(): Promise<void> {
   const state = loadOrInit();
@@ -27,18 +52,7 @@ export async function runRegister(): Promise<void> {
     process.exit(1);
   }
 
-  const next = {
-    ...state,
-    mode: "multiplayer" as const,
-    cloud: {
-      serverUrl,
-      token,
-      userId: result.user.id,
-      username: result.user.name,
-      lastSyncAt: null,
-      lastSyncError: null,
-    },
-  };
+  const next = buildRegisteredState(state, serverUrl, token, result.user);
   saveState(next);
   process.stdout.write(`✓ Registered as ${result.user.name ?? result.user.id}.\n`);
   process.stdout.write(`  Mode is now: multiplayer\n`);

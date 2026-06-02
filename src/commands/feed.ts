@@ -1,4 +1,4 @@
-import { checkEvolution } from "../core/evolution.js";
+import { checkEvolution, type EvolutionResult } from "../core/evolution.js";
 import { feedAll } from "../core/hunger.js";
 import { activeCreature, loadOrInit, saveState } from "../core/state.js";
 import { bumpStreak } from "../core/streak.js";
@@ -22,20 +22,34 @@ export const TOOL_TO_FOOD: Record<string, FoodType> = {
   WebSearch: "web",
 };
 
-export async function runFeed(): Promise<void> {
-  const payload = await readStdinJson();
+/**
+ * Pure feed pipeline: feed the active creature, check for evolution, and bump
+ * the daily streak on prompts. Returns the next state plus any evolution events
+ * to report. Kept side-effect-free so it can be unit/integration tested.
+ */
+export function applyFeed(
+  state: State,
+  food: FoodType,
+  now: number,
+): { state: State; events: EvolutionResult["events"] } {
+  const active = activeCreature(state);
+  const fedState = feedAll(state, food, now, active?.id ?? null);
+  const evolved = checkEvolution(fedState, now);
+  const streaked = food === "prompt" ? bumpStreak(evolved.state, now) : evolved.state;
+  return { state: streaked, events: evolved.events };
+}
+
+export async function runFeed(payloadOverride?: HookPayload): Promise<void> {
+  const payload = payloadOverride ?? (await readStdinJson());
   const food = mapPayloadToFood(payload);
   if (!food) return;
 
   const now = Date.now();
   const state = loadOrInit();
-  const active = activeCreature(state);
-  const fedState = feedAll(state, food, now, active?.id ?? null);
-  const evolved = checkEvolution(fedState, now);
-  const streaked = food === "prompt" ? bumpStreak(evolved.state, now) : evolved.state;
+  const { state: streaked, events } = applyFeed(state, food, now);
   saveState(streaked);
 
-  for (const ev of evolved.events) {
+  for (const ev of events) {
     if (ev.spawnedNewEgg) {
       process.stderr.write(`Your elder has reached its peak. A new egg has appeared alongside it.\n`);
     } else if (ev.klass) {
