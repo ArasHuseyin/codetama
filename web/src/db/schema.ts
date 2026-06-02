@@ -51,41 +51,49 @@ export const verificationTokens = pgTable(
   (vt) => [primaryKey({ columns: [vt.identifier, vt.token] })],
 );
 
-export const cliTokens = pgTable("cli_tokens", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  hashedToken: text("hashed_token").notNull().unique(),
-  prefix: text("prefix").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  lastUsedAt: timestamp("last_used_at"),
-  revokedAt: timestamp("revoked_at"),
-  revoked: boolean("revoked").notNull().default(false),
-});
+export const cliTokens = pgTable(
+  "cli_tokens",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    hashedToken: text("hashed_token").notNull().unique(),
+    prefix: text("prefix").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at"),
+    revokedAt: timestamp("revoked_at"),
+    revoked: boolean("revoked").notNull().default(false),
+  },
+  (t) => [index("cli_tokens_user_id_idx").on(t.userId)],
+);
 
-export const creatures = pgTable("creatures", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  stage: text("stage").notNull(),
-  klass: text("klass"),
-  str: integer("str").notNull().default(1),
-  intStat: integer("int_stat").notNull().default(1),
-  dex: integer("dex").notNull().default(1),
-  hunger: integer("hunger").notNull().default(50),
-  promptsTotal: integer("prompts_total").notNull().default(0),
-  promptsThisStage: integer("prompts_this_stage").notNull().default(0),
-  bornAt: timestamp("born_at").notNull().defaultNow(),
-  lastFedAt: timestamp("last_fed_at").notNull().defaultNow(),
-  lastSyncedAt: timestamp("last_synced_at").notNull().defaultNow(),
-  diedAt: timestamp("died_at"),
-  rebirths: integer("rebirths").notNull().default(0),
-  active: boolean("active").notNull().default(true),
-});
+export const creatures = pgTable(
+  "creatures",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    stage: text("stage").notNull(),
+    klass: text("klass"),
+    str: integer("str").notNull().default(1),
+    intStat: integer("int_stat").notNull().default(1),
+    dex: integer("dex").notNull().default(1),
+    hunger: integer("hunger").notNull().default(50),
+    promptsTotal: integer("prompts_total").notNull().default(0),
+    promptsThisStage: integer("prompts_this_stage").notNull().default(0),
+    bornAt: timestamp("born_at").notNull().defaultNow(),
+    lastFedAt: timestamp("last_fed_at").notNull().defaultNow(),
+    lastSyncedAt: timestamp("last_synced_at").notNull().defaultNow(),
+    diedAt: timestamp("died_at"),
+    rebirths: integer("rebirths").notNull().default(0),
+    active: boolean("active").notNull().default(true),
+  },
+  (t) => [index("creatures_user_id_idx").on(t.userId)],
+);
 
 export const tiles = pgTable(
   "tiles",
@@ -99,10 +107,15 @@ export const tiles = pgTable(
     baseCreatureId: text("base_creature_id").references(() => creatures.id, { onDelete: "set null" }),
     acquiredAt: timestamp("acquired_at").notNull().defaultNow(),
   },
-  (t) => [unique("tiles_xy_unique").on(t.x, t.y)],
+  (t) => [
+    unique("tiles_xy_unique").on(t.x, t.y),
+    index("tiles_owner_user_id_idx").on(t.ownerUserId),
+  ],
 );
 
-export const battles = pgTable("battles", {
+export const battles = pgTable(
+  "battles",
+  {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   attackerUserId: text("attacker_user_id")
     .notNull()
@@ -132,7 +145,13 @@ export const battles = pgTable("battles", {
   endedAt: timestamp("ended_at"),
   winnerUserId: text("winner_user_id"),
   lastMoveAt: timestamp("last_move_at").notNull().defaultNow(),
-});
+  },
+  (t) => [
+    index("battles_attacker_user_id_idx").on(t.attackerUserId),
+    index("battles_defender_user_id_idx").on(t.defenderUserId),
+    index("battles_state_idx").on(t.state),
+  ],
+);
 
 export const battleTurns = pgTable(
   "battle_turns",
@@ -179,16 +198,21 @@ export const tileAds = pgTable("tile_ads", {
 
 export type TileAd = typeof tileAds.$inferSelect;
 
-export const events = pgTable("events", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  kind: text("kind").notNull(),
-  payload: text("payload").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  deliveredAt: timestamp("delivered_at"),
-});
+export const events = pgTable(
+  "events",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    payload: text("payload").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    deliveredAt: timestamp("delivered_at"),
+  },
+  // Sync fetches undelivered events per user: WHERE user_id = ? AND delivered_at IS NULL.
+  (t) => [index("events_user_undelivered_idx").on(t.userId, t.deliveredAt)],
+);
 
 export type User = typeof users.$inferSelect;
 export type CliToken = typeof cliTokens.$inferSelect;

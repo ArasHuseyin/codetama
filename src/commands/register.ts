@@ -1,7 +1,32 @@
 import { createInterface } from "node:readline/promises";
-import { spawn } from "node:child_process";
-import { loadOrInit, saveState } from "../core/state.js";
+import { loadOrInit, saveState, withStateLock } from "../core/state.js";
 import { getServerUrl, pushSync, validateToken } from "../core/sync.js";
+import { openBrowser } from "../util/open-browser.js";
+import type { State } from "../types.js";
+
+/**
+ * Pure: produce the multiplayer state for a freshly validated token. Keeps the
+ * existing creatures/history; only flips the mode and attaches cloud config.
+ */
+export function buildRegisteredState(
+  state: State,
+  serverUrl: string,
+  token: string,
+  user: { id: string; name: string | null },
+): State {
+  return {
+    ...state,
+    mode: "multiplayer",
+    cloud: {
+      serverUrl,
+      token,
+      userId: user.id,
+      username: user.name,
+      lastSyncAt: null,
+      lastSyncError: null,
+    },
+  };
+}
 
 export async function runRegister(): Promise<void> {
   const state = loadOrInit();
@@ -27,19 +52,12 @@ export async function runRegister(): Promise<void> {
     process.exit(1);
   }
 
-  const next = {
-    ...state,
-    mode: "multiplayer" as const,
-    cloud: {
-      serverUrl,
-      token,
-      userId: result.user.id,
-      username: result.user.name,
-      lastSyncAt: null,
-      lastSyncError: null,
-    },
-  };
-  saveState(next);
+  const next = withStateLock(() => {
+    const latest = loadOrInit();
+    const built = buildRegisteredState(latest, serverUrl, token, result.user);
+    saveState(built);
+    return built;
+  });
   process.stdout.write(`✓ Registered as ${result.user.name ?? result.user.id}.\n`);
   process.stdout.write(`  Mode is now: multiplayer\n`);
 
@@ -50,30 +68,19 @@ export async function runRegister(): Promise<void> {
   const now = Date.now();
   const sync = await pushSync(next, now);
   if (sync.ok) {
-    const after = loadOrInit();
-    if (after.cloud) {
-      saveState({
-        ...after,
-        cloud: { ...after.cloud, lastSyncAt: now, lastSyncError: null },
-      });
-    }
+    withStateLock(() => {
+      const after = loadOrInit();
+      if (after.cloud) {
+        saveState({
+          ...after,
+          cloud: { ...after.cloud, lastSyncAt: now, lastSyncError: null },
+        });
+      }
+    });
     process.stdout.write(`✓ Tile claimed. Open ${serverUrl}/map to see your spot.\n`);
   } else {
-    process.stdout.write(`  (initial sync failed: ${sync.error}. Will retry on next prompt.)\n`);
-  }
-}
-
-function openBrowser(url: string): void {
-  const platform = process.platform;
-  try {
-    if (platform === "win32") {
-      spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
-    } else if (platform === "darwin") {
-      spawn("open", [url], { detached: true, stdio: "ignore" }).unref();
-    } else {
-      spawn("xdg-open", [url], { detached: true, stdio: "ignore" }).unref();
-    }
-  } catch {
-    // ignore — user can copy/paste from stdout
+    process.stdout.write(`  ⚠ initial sync failed: ${sync.error}\n`);
+    process.stdout.write(`    Your creature is registered locally and will sync automatically the next\n`);
+    process.stdout.write(`    time you submit a prompt in Claude Code.\n`);
   }
 }

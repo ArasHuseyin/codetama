@@ -65,7 +65,6 @@ export interface CreatureSnapshot {
 export interface ViewState {
   lastViewedAt: number;
   snapshots: Record<string, CreatureSnapshot>;
-  acknowledgedEventIds: string[];
 }
 
 export interface StreakState {

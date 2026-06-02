@@ -100,6 +100,8 @@ export function moodOf(creature: Creature): Mood {
   if (creature.stage === "dead") return "sick";
   if (creature.hunger <= 10) return "sick";
   if (creature.hunger <= 30) return "hungry";
+  // Overworked this stage and not well-fed: grumpy. Overworked but fed: just tired.
+  if (creature.promptsThisStage > 30 && creature.hunger < 50) return "grumpy";
   if (creature.promptsThisStage > 30) return "tired";
   if (creature.hunger >= 80) return "happy";
   return "content";

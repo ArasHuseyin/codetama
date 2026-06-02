@@ -16,6 +16,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     actorUserId: session.user.id,
     skillId,
   });
-  if ("error" in result) return new NextResponse(result.error, { status: 400 });
-  return NextResponse.json({ ok: true });
+  if ("error" in result) {
+    const err = result.error;
+    const status = /stale turn|not your turn|already.*active/.test(err)
+      ? 409
+      : /cooldown/.test(err)
+        ? 422
+        : 400;
+    return new NextResponse(err, { status });
+  }
+  return NextResponse.json({ ok: result.ok, captured: result.captured });
 }

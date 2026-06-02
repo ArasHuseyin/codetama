@@ -2,17 +2,19 @@ import type { State, StreakState } from "../types.js";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+// Day boundaries use UTC so a streak can't break (or double-count) just because
+// the user changed timezones between two prompts.
 export function dayKey(ts: number): string {
   const d = new Date(ts);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
 
 function midnightOf(key: string): number {
   const [y, m, d] = key.split("-").map((s) => Number(s));
-  return new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1).getTime();
+  return Date.UTC(y ?? 1970, (m ?? 1) - 1, d ?? 1);
 }
 
 function dayDiff(from: string, to: string): number {

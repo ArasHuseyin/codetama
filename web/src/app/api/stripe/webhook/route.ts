@@ -50,6 +50,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     return;
   }
 
+  // Idempotency: Stripe retries webhooks on timeout/5xx. Once an ad reaches a
+  // terminal/paid state, a duplicate checkout event must not re-process it —
+  // that would, e.g., flip a refunded ad back to active.
+  if (existing.status === "active" || existing.status === "refunded" || existing.status === "rejected") {
+    return;
+  }
+
   // Decide active vs pending_review based on URL whitelist.
   const v = validateTileAd(existing.text, existing.url);
   const status = v.ok && !v.needsReview ? "active" : v.ok ? "pending_review" : "pending_review";
@@ -77,6 +84,7 @@ async function handleRefund(charge: Stripe.Charge) {
     .limit(1);
 
   if (!existing) return;
+  if (existing.status === "refunded") return; // already processed
 
   await db
     .update(tileAds)
