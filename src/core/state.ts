@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync, openSync, closeSync, unlinkSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -141,6 +141,64 @@ export function saveState(state: State, path: string = getStatePath()): void {
 
 export function loadOrInit(name: string = generateName(), path: string = getStatePath()): State {
   return loadState(path) ?? newState(name);
+}
+
+const LOCK_STALE_MS = 5_000;
+const LOCK_RETRY_MS = 20;
+const LOCK_TIMEOUT_MS = 5_000;
+
+function sleepSync(ms: number): void {
+  // Block this (short-lived) hook process briefly without busy-spinning the CPU.
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * Run `fn` while holding an exclusive lock on the state file, so concurrent
+ * Claude Code hooks (a prompt and a tool firing at once) can't clobber each
+ * other's read-modify-write. Keep `fn` synchronous and short — never await
+ * inside it. A crashed holder's lock is reclaimed once it goes stale.
+ */
+export function withStateLock<T>(fn: () => T, path: string = getStatePath()): T {
+  mkdirSync(dirname(path), { recursive: true });
+  const lockPath = `${path}.lock`;
+  const start = Date.now();
+  let fd: number | null = null;
+  for (;;) {
+    try {
+      fd = openSync(lockPath, "wx");
+      break;
+    } catch {
+      let stale = false;
+      try {
+        stale = Date.now() - statSync(lockPath).mtimeMs > LOCK_STALE_MS;
+      } catch {
+        continue; // lock vanished between open and stat — retry immediately
+      }
+      if (stale || Date.now() - start > LOCK_TIMEOUT_MS) {
+        try {
+          unlinkSync(lockPath);
+        } catch {
+          /* someone else reclaimed it */
+        }
+        continue;
+      }
+      sleepSync(LOCK_RETRY_MS);
+    }
+  }
+  try {
+    return fn();
+  } finally {
+    try {
+      closeSync(fd);
+    } catch {
+      /* already closed */
+    }
+    try {
+      unlinkSync(lockPath);
+    } catch {
+      /* already removed */
+    }
+  }
 }
 
 export function activeCreature(state: State): Creature | null {

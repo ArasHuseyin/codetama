@@ -1,6 +1,6 @@
 import { checkEvolution, type EvolutionResult } from "../core/evolution.js";
 import { feedAll } from "../core/hunger.js";
-import { activeCreature, loadOrInit, saveState } from "../core/state.js";
+import { activeCreature, loadOrInit, saveState, withStateLock } from "../core/state.js";
 import { bumpStreak } from "../core/streak.js";
 import { pushSync, shouldSyncNow } from "../core/sync.js";
 import type { FoodType, State } from "../types.js";
@@ -45,9 +45,13 @@ export async function runFeed(payloadOverride?: HookPayload): Promise<void> {
   if (!food) return;
 
   const now = Date.now();
-  const state = loadOrInit();
-  const { state: streaked, events } = applyFeed(state, food, now);
-  saveState(streaked);
+  // Load → mutate → save under a lock so a concurrent hook can't overwrite us.
+  const { streaked, events } = withStateLock(() => {
+    const state = loadOrInit();
+    const applied = applyFeed(state, food, now);
+    saveState(applied.state);
+    return { streaked: applied.state, events: applied.events };
+  });
 
   for (const ev of events) {
     if (ev.spawnedNewEgg) {
@@ -89,28 +93,33 @@ async function readStdinJson(): Promise<HookPayload> {
 async function maybeSync(state: State, now: number): Promise<void> {
   if (!shouldSyncNow(state, now)) return;
   const result = await pushSync(state, now);
-  const after = loadOrInit();
-  if (!after.cloud) return;
 
-  const incoming = (result.events ?? []).map((e) => ({
-    id: e.id,
-    kind: e.kind,
-    payload: e.payload,
-    createdAt: e.createdAt,
-    shown: false,
-  }));
-  const existing = after.remoteEvents ?? [];
-  const seen = new Set(existing.map((e) => e.id));
-  const merged = [...existing, ...incoming.filter((e) => !seen.has(e.id))];
-  const trimmed = merged.slice(-50);
+  // Re-read under the lock so we merge incoming events into the latest on-disk
+  // state (which a concurrent hook may have advanced) without losing it.
+  withStateLock(() => {
+    const after = loadOrInit();
+    if (!after.cloud) return;
 
-  saveState({
-    ...after,
-    remoteEvents: trimmed,
-    cloud: {
-      ...after.cloud,
-      lastSyncAt: result.ok ? now : after.cloud.lastSyncAt,
-      lastSyncError: result.ok ? null : (result.error ?? "unknown"),
-    },
+    const incoming = (result.events ?? []).map((e) => ({
+      id: e.id,
+      kind: e.kind,
+      payload: e.payload,
+      createdAt: e.createdAt,
+      shown: false,
+    }));
+    const existing = after.remoteEvents ?? [];
+    const seen = new Set(existing.map((e) => e.id));
+    const merged = [...existing, ...incoming.filter((e) => !seen.has(e.id))];
+    const trimmed = merged.slice(-50);
+
+    saveState({
+      ...after,
+      remoteEvents: trimmed,
+      cloud: {
+        ...after.cloud,
+        lastSyncAt: result.ok ? now : after.cloud.lastSyncAt,
+        lastSyncError: result.ok ? null : (result.error ?? "unknown"),
+      },
+    });
   });
 }

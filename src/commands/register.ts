@@ -1,5 +1,5 @@
 import { createInterface } from "node:readline/promises";
-import { loadOrInit, saveState } from "../core/state.js";
+import { loadOrInit, saveState, withStateLock } from "../core/state.js";
 import { getServerUrl, pushSync, validateToken } from "../core/sync.js";
 import { openBrowser } from "../util/open-browser.js";
 import type { State } from "../types.js";
@@ -52,8 +52,12 @@ export async function runRegister(): Promise<void> {
     process.exit(1);
   }
 
-  const next = buildRegisteredState(state, serverUrl, token, result.user);
-  saveState(next);
+  const next = withStateLock(() => {
+    const latest = loadOrInit();
+    const built = buildRegisteredState(latest, serverUrl, token, result.user);
+    saveState(built);
+    return built;
+  });
   process.stdout.write(`✓ Registered as ${result.user.name ?? result.user.id}.\n`);
   process.stdout.write(`  Mode is now: multiplayer\n`);
 
@@ -64,13 +68,15 @@ export async function runRegister(): Promise<void> {
   const now = Date.now();
   const sync = await pushSync(next, now);
   if (sync.ok) {
-    const after = loadOrInit();
-    if (after.cloud) {
-      saveState({
-        ...after,
-        cloud: { ...after.cloud, lastSyncAt: now, lastSyncError: null },
-      });
-    }
+    withStateLock(() => {
+      const after = loadOrInit();
+      if (after.cloud) {
+        saveState({
+          ...after,
+          cloud: { ...after.cloud, lastSyncAt: now, lastSyncError: null },
+        });
+      }
+    });
     process.stdout.write(`✓ Tile claimed. Open ${serverUrl}/map to see your spot.\n`);
   } else {
     process.stdout.write(`  ⚠ initial sync failed: ${sync.error}\n`);

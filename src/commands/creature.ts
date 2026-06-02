@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { applyDecayAll } from "../core/hunger.js";
 import { isInstalled } from "../hooks/claude-code.js";
-import { getStatePath, loadOrInit, saveState } from "../core/state.js";
+import { getStatePath, loadOrInit, saveState, withStateLock } from "../core/state.js";
 import { renderState } from "../render/creature-box.js";
 import { computeEvents, withUpdatedView } from "../core/events.js";
 import { renderBigEventBanner, renderEventLine, renderRemoteEvents } from "../render/events.js";
@@ -39,18 +39,23 @@ export function runCreature(options: RunCreatureOptions = {}): void {
 function renderOnce(): void {
   const now = Date.now();
   const isFirstRun = !existsSync(getStatePath());
-  const state = loadOrInit();
-  const decayed = applyDecayAll(state, now);
+
+  // Decay + view-snapshot is a read-modify-write; lock it so a hook firing
+  // mid-render can't clobber it.
+  const { decayed, finalState } = withStateLock(() => {
+    const state = loadOrInit();
+    const d = applyDecayAll(state, now);
+    const updated = withUpdatedView(d, now);
+    const remoteAcked = (updated.remoteEvents ?? []).map((e) => ({ ...e, shown: true }));
+    const final = remoteAcked.length > 0 ? { ...updated, remoteEvents: remoteAcked } : updated;
+    saveState(final);
+    return { decayed: d, finalState: final };
+  });
 
   const events = computeEvents(decayed);
   const banner = renderBigEventBanner(events);
   const eventLine = renderEventLine(events);
   const remoteLines = renderRemoteEvents(decayed.remoteEvents ?? []);
-
-  const updated = withUpdatedView(decayed, now);
-  const remoteAcked = (updated.remoteEvents ?? []).map((e) => ({ ...e, shown: true }));
-  const finalState = remoteAcked.length > 0 ? { ...updated, remoteEvents: remoteAcked } : updated;
-  saveState(finalState);
 
   if (isFirstRun) {
     process.stdout.write(WELCOME + "\n");

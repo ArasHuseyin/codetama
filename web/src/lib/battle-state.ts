@@ -14,6 +14,17 @@ import { canAttackerReach } from "./reachability";
 export const BATTLE_PAIR_COOLDOWN_MS = 60 * 60 * 1000;
 const AUTOPLAY_MAX_TURNS = 80;
 
+/** Cooldown maps are server-written JSON, but never trust stored strings blindly:
+ * a corrupted value must not crash the whole battle endpoint. */
+function parseCooldowns(raw: string): Record<string, number> {
+  try {
+    const v = JSON.parse(raw);
+    return v && typeof v === "object" ? (v as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
+
 export interface BattleSnapshot {
   id: string;
   state: "active" | "ended";
@@ -330,19 +341,19 @@ export async function getBattleSnapshot(battleId: string): Promise<BattleSnapsho
   const [b] = await db.select().from(battles).where(eq(battles.id, battleId)).limit(1);
   if (!b) return null;
 
-  const [attackerCreature] = await db.select().from(creatures).where(eq(creatures.id, b.attackerCreatureId)).limit(1);
-  const [defenderCreature] = await db.select().from(creatures).where(eq(creatures.id, b.defenderCreatureId)).limit(1);
-  const [attackerUser] = await db.select().from(users).where(eq(users.id, b.attackerUserId)).limit(1);
-  const [defenderUser] = await db.select().from(users).where(eq(users.id, b.defenderUserId)).limit(1);
+  // The participant/turn lookups are independent — run them concurrently
+  // instead of serializing four round-trips.
+  const [[attackerCreature], [defenderCreature], [attackerUser], [defenderUser], turns] =
+    await Promise.all([
+      db.select().from(creatures).where(eq(creatures.id, b.attackerCreatureId)).limit(1),
+      db.select().from(creatures).where(eq(creatures.id, b.defenderCreatureId)).limit(1),
+      db.select().from(users).where(eq(users.id, b.attackerUserId)).limit(1),
+      db.select().from(users).where(eq(users.id, b.defenderUserId)).limit(1),
+      db.select().from(battleTurns).where(eq(battleTurns.battleId, battleId)).orderBy(asc(battleTurns.turnNo)),
+    ]);
 
-  const turns = await db
-    .select()
-    .from(battleTurns)
-    .where(eq(battleTurns.battleId, battleId))
-    .orderBy(asc(battleTurns.turnNo));
-
-  const attackerCd = JSON.parse(b.attackerCooldowns) as Record<string, number>;
-  const defenderCd = JSON.parse(b.defenderCooldowns) as Record<string, number>;
+  const attackerCd = parseCooldowns(b.attackerCooldowns);
+  const defenderCd = parseCooldowns(b.defenderCooldowns);
 
   return {
     id: b.id,
@@ -430,8 +441,8 @@ export async function submitMove(args: {
   const skill = getSkill(actorCreature.klass, skillId);
   if (!skill) return { error: "unknown skill" };
 
-  const attackerCdMap = JSON.parse(b.attackerCooldowns) as Record<string, number>;
-  const defenderCdMap = JSON.parse(b.defenderCooldowns) as Record<string, number>;
+  const attackerCdMap = parseCooldowns(b.attackerCooldowns);
+  const defenderCdMap = parseCooldowns(b.defenderCooldowns);
 
   const attackerCombatant: Combatant = {
     userId: b.attackerUserId,

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/db/client";
 import { creatures, tileAds, tiles, users } from "@/db/schema";
-import { and, asc, eq, gte, isNull, lte, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lte, ne, sql } from "drizzle-orm";
 
 export const revalidate = 0;
 
@@ -30,8 +30,12 @@ export async function GET(req: Request) {
       )
     : sql`true`;
 
+  // Owners may (legacy data) join to multiple active creatures. DISTINCT ON
+  // collapses to one row per tile in SQL — ordered so the kept row is the
+  // strongest creature (has a creature, then highest level, then newest).
+  const level = sql`coalesce(${creatures.str}, 0) + coalesce(${creatures.intStat}, 0) + coalesce(${creatures.dex}, 0)`;
   const rows = await db
-    .select({
+    .selectDistinctOn([tiles.x, tiles.y], {
       x: tiles.x,
       y: tiles.y,
       acquiredAt: tiles.acquiredAt,
@@ -59,11 +63,17 @@ export async function GET(req: Request) {
     )
     .leftJoin(tileAds, eq(tileAds.userId, tiles.ownerUserId))
     .where(viewport)
-    .orderBy(asc(tiles.x), asc(tiles.y))
-    .limit(MAX_TILES * 4);
+    // DISTINCT ON requires the leading ORDER BY keys to match its columns.
+    .orderBy(
+      asc(tiles.x),
+      asc(tiles.y),
+      desc(sql`(${creatures.id} is not null)`),
+      desc(level),
+      desc(creatures.bornAt),
+    )
+    .limit(MAX_TILES);
 
-  // Defensive dedup: legacy rows in prod may still have multiple active
-  // creatures. Always show the strongest creature for the tile owner.
+  // Defensive net in case ordering ever surprises us: keep the strongest per tile.
   const byTile = new Map<string, typeof rows[number]>();
   for (const r of rows) {
     const key = `${r.x},${r.y}`;
