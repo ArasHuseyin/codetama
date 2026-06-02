@@ -5,12 +5,12 @@ import { bumpStreak } from "../core/streak.js";
 import { pushSync, shouldSyncNow } from "../core/sync.js";
 import type { FoodType, State } from "../types.js";
 
-interface HookPayload {
+export interface HookPayload {
   hook_event_name?: string;
   tool_name?: string;
 }
 
-const TOOL_TO_FOOD: Record<string, FoodType> = {
+export const TOOL_TO_FOOD: Record<string, FoodType> = {
   Bash: "bash",
   Read: "read",
   Grep: "search",
@@ -48,7 +48,7 @@ export async function runFeed(): Promise<void> {
   await maybeSync(streaked, now);
 }
 
-function mapPayloadToFood(payload: HookPayload): FoodType | null {
+export function mapPayloadToFood(payload: HookPayload): FoodType | null {
   if (payload.hook_event_name === "UserPromptSubmit") return "prompt";
   if (payload.hook_event_name === "PostToolUse" && payload.tool_name) {
     return TOOL_TO_FOOD[payload.tool_name] ?? null;
@@ -66,7 +66,8 @@ async function readStdinJson(): Promise<HookPayload> {
   if (raw === "") return {};
   try {
     return JSON.parse(raw) as HookPayload;
-  } catch {
+  } catch (e) {
+    process.stderr.write(`[codetama] could not parse hook payload as JSON: ${(e as Error).message}\n`);
     return {};
   }
 }

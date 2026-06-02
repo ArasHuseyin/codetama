@@ -28,7 +28,11 @@ export function readSettings(path: string = getClaudeSettingsPath()): ClaudeSett
   if (!existsSync(path)) return {};
   const raw = readFileSync(path, "utf8").trim();
   if (raw === "") return {};
-  return JSON.parse(raw) as ClaudeSettings;
+  try {
+    return JSON.parse(raw) as ClaudeSettings;
+  } catch (e) {
+    throw new Error(`Failed to parse Claude settings at ${path}: ${(e as Error).message}`);
+  }
 }
 
 export function writeSettings(settings: ClaudeSettings, path: string = getClaudeSettingsPath()): void {

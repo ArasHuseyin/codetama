@@ -37,6 +37,8 @@ function parseArgs(argv: string[]): ParsedArgs {
       } else if (!commandSet) {
         command = name;
         commandSet = true;
+      } else {
+        process.stderr.write(`Unknown flag: --${name}\n`);
       }
       continue;
     }

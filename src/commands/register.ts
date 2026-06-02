@@ -1,7 +1,7 @@
 import { createInterface } from "node:readline/promises";
-import { spawn } from "node:child_process";
 import { loadOrInit, saveState } from "../core/state.js";
 import { getServerUrl, pushSync, validateToken } from "../core/sync.js";
+import { openBrowser } from "../util/open-browser.js";
 
 export async function runRegister(): Promise<void> {
   const state = loadOrInit();
@@ -59,21 +59,8 @@ export async function runRegister(): Promise<void> {
     }
     process.stdout.write(`✓ Tile claimed. Open ${serverUrl}/map to see your spot.\n`);
   } else {
-    process.stdout.write(`  (initial sync failed: ${sync.error}. Will retry on next prompt.)\n`);
-  }
-}
-
-function openBrowser(url: string): void {
-  const platform = process.platform;
-  try {
-    if (platform === "win32") {
-      spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
-    } else if (platform === "darwin") {
-      spawn("open", [url], { detached: true, stdio: "ignore" }).unref();
-    } else {
-      spawn("xdg-open", [url], { detached: true, stdio: "ignore" }).unref();
-    }
-  } catch {
-    // ignore — user can copy/paste from stdout
+    process.stdout.write(`  ⚠ initial sync failed: ${sync.error}\n`);
+    process.stdout.write(`    Your creature is registered locally and will sync automatically the next\n`);
+    process.stdout.write(`    time you submit a prompt in Claude Code.\n`);
   }
 }

@@ -43,8 +43,10 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function isUuidish(s: string): boolean {
-  return typeof s === "string" && s.length >= 8 && s.length <= 64;
+  return typeof s === "string" && UUID_RE.test(s);
 }
 
 function sanitize(c: SyncCreatureBody): SyncCreatureBody | string {
@@ -145,15 +147,26 @@ export async function POST(req: Request) {
       new Date(c.bornAt),
     );
 
+    // Stats only ever increase. A creature whose stored stats are already
+    // higher than the incoming sync (e.g. a tampered local state file) keeps
+    // its stored values — never regresses below what the server has recorded.
+    const stats = prev
+      ? {
+          str: Math.max(prev.str, cap.stats.str),
+          int: Math.max(prev.intStat, cap.stats.int),
+          dex: Math.max(prev.dex, cap.stats.dex),
+        }
+      : cap.stats;
+
     const values = {
       id: c.id,
       userId: user.id,
       name: c.name,
       stage: c.stage,
       klass: c.klass,
-      str: cap.stats.str,
-      intStat: cap.stats.int,
-      dex: cap.stats.dex,
+      str: stats.str,
+      intStat: stats.int,
+      dex: stats.dex,
       hunger: c.hunger,
       promptsTotal: c.promptsTotal,
       promptsThisStage: c.promptsThisStage,
