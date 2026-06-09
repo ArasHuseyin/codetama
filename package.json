@@ -1,6 +1,6 @@
 {
   "name": "codetama",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "A digital pet that lives in your Claude Code session — every prompt is food.",
   "type": "module",
   "bin": {
@@ -24,7 +24,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "keywords": [
     "claude-code",
