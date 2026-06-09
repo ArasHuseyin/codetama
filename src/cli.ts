@@ -57,7 +57,11 @@ function main(): void {
       runRename(positional.join(" "));
       return;
     case "feed":
-      void runFeed();
+      // Feed runs as a hook after every tool call; a missed feeding must
+      // never surface as a hook error in the middle of a session.
+      void runFeed().catch((e: unknown) => {
+        process.stderr.write(`codetama: feed skipped (${e instanceof Error ? e.message : String(e)})\n`);
+      });
       return;
     case "install":
       runInstall();
