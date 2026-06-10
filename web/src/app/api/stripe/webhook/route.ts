@@ -50,9 +50,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     return;
   }
 
+  // Stripe retries and may deliver the same event more than once; skip
+  // sessions we have already processed.
+  if (existing.paidAt && existing.stripeSessionId === session.id) return;
+
   // Decide active vs pending_review based on URL whitelist.
   const v = validateTileAd(existing.text, existing.url);
-  const status = v.ok && !v.needsReview ? "active" : v.ok ? "pending_review" : "pending_review";
+  const status = v.ok && !v.needsReview ? "active" : "pending_review";
 
   await db
     .update(tileAds)
@@ -77,6 +81,7 @@ async function handleRefund(charge: Stripe.Charge) {
     .limit(1);
 
   if (!existing) return;
+  if (existing.status === "refunded") return; // duplicate delivery
 
   await db
     .update(tileAds)

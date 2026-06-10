@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   applyMove,
+  chooseAutoplaySkill,
   computeDamage,
   critChance,
   isOnCooldown,
@@ -167,5 +168,37 @@ describe("skill metadata", () => {
       expect(skills[3]?.ultimate).toBe(true);
       expect(skills.slice(0, 3).every((s) => !s.ultimate)).toBe(true);
     }
+  });
+});
+
+describe("chooseAutoplaySkill", () => {
+  const sage = SKILLS.sage; // bolt (damage, cd 0), soothe (heal, cd 1), tempest (damage, cd 2), cataclysm (ult)
+  const fixedRng = { next: () => 0 };
+
+  it("never heals at full HP", () => {
+    for (let i = 0; i < 50; i++) {
+      const pick = chooseAutoplaySkill(sage, {}, 100, 100);
+      expect(pick?.kind).not.toBe("heal");
+    }
+  });
+
+  it("heals when HP is low and a heal is ready", () => {
+    const pick = chooseAutoplaySkill(sage, {}, 20, 100, fixedRng);
+    expect(pick?.id).toBe("soothe");
+  });
+
+  it("attacks when low but the heal is on cooldown", () => {
+    const pick = chooseAutoplaySkill(sage, { soothe: 1 }, 20, 100, fixedRng);
+    expect(pick?.kind).not.toBe("heal");
+  });
+
+  it("falls back to a zero-cooldown skill when everything is cooling down", () => {
+    const allCooling = Object.fromEntries(sage.map((s) => [s.id, 2]));
+    const pick = chooseAutoplaySkill(sage, allCooling, 100, 100);
+    expect(pick?.cooldown).toBe(0);
+  });
+
+  it("returns null for an empty skill list", () => {
+    expect(chooseAutoplaySkill([], {}, 100, 100)).toBeNull();
   });
 });

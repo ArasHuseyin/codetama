@@ -3,6 +3,7 @@ import { accounts, battles, battleTurns, creatures, events, tiles, users } from 
 import { and, asc, desc, eq, gte, isNull, ne, or, sql } from "drizzle-orm";
 import {
   applyMove,
+  chooseAutoplaySkill,
   isOver,
   maxHpFor,
   type Combatant,
@@ -208,10 +209,8 @@ export async function startBattle(args: {
       const them = turnOwner === "attacker" ? defCur : attCur;
       const skills = availableSkills(me.klass);
       if (skills.length === 0) break;
-      const ready = skills.filter((s) => (me.cooldowns[s.id] ?? 0) === 0);
-      const pick = ready.length > 0
-        ? ready[Math.floor(Math.random() * ready.length)]!
-        : skills[0]!;
+      const pick = chooseAutoplaySkill(skills, me.cooldowns, me.hp, me.maxHp);
+      if (!pick) break;
 
       const result = applyMove(me, them, pick);
       const meAfter = result.attacker;
@@ -569,8 +568,7 @@ export async function simulateBattleToCompletion(battleId: string): Promise<void
 
     const turnOwnerId = snap.turnOwnerUserId;
     const me = snap.attacker.userId === turnOwnerId ? snap.attacker : snap.defender;
-    const ready = me.skills.filter((s) => s.remainingCd === 0);
-    const pick = ready.length > 0 ? ready[Math.floor(Math.random() * ready.length)]! : me.skills[0];
+    const pick = chooseAutoplaySkill(availableSkills(me.klass), me.cooldowns, me.hp, me.maxHp);
     if (!pick) return;
 
     const result = await submitMove({

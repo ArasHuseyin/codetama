@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { activeCreature, loadState, newState, saveState } from "../src/core/state.js";
@@ -31,6 +31,19 @@ describe("state persistence", () => {
   it("rejects unknown version", () => {
     saveState({ ...newState("T"), version: 99 as 3 }, path);
     expect(() => loadState(path)).toThrow(/version/);
+  });
+
+  it("quarantines a corrupt file instead of crashing", () => {
+    writeFileSync(path, "{ not json at all", "utf8");
+    expect(loadState(path)).toBeNull();
+    expect(existsSync(path)).toBe(false);
+    expect(readdirSync(tmpDir).some((f) => f.startsWith("state.json.corrupt-"))).toBe(true);
+  });
+
+  it("quarantines valid JSON that is not a state object", () => {
+    writeFileSync(path, JSON.stringify(["not", "a", "state"]), "utf8");
+    expect(loadState(path)).toBeNull();
+    expect(existsSync(path)).toBe(false);
   });
 
   it("migrates v1 → v3", () => {

@@ -4,7 +4,6 @@ import { runFeed } from "./commands/feed.js";
 import { runHelp, runVersion } from "./commands/help.js";
 import { runInstall, runUninstall } from "./commands/install.js";
 import { runReset } from "./commands/reset.js";
-import { runStub } from "./commands/stub.js";
 import { runView } from "./commands/view.js";
 import { runRegister } from "./commands/register.js";
 import { runLocal } from "./commands/local.js";
@@ -46,6 +45,12 @@ function parseArgs(argv: string[]): ParsedArgs {
   return { command, force, watch, positional };
 }
 
+function fail(err: unknown): never {
+  const message = err instanceof Error ? err.message : String(err);
+  process.stderr.write(`codetama: ${message}\n`);
+  process.exit(1);
+}
+
 function main(): void {
   const { command, force, watch, positional } = parseArgs(process.argv);
 
@@ -57,7 +62,7 @@ function main(): void {
       runRename(positional.join(" "));
       return;
     case "feed":
-      void runFeed();
+      runFeed().catch(fail);
       return;
     case "install":
       runInstall();
@@ -72,7 +77,7 @@ function main(): void {
       runView();
       return;
     case "register":
-      void runRegister();
+      runRegister().catch(fail);
       return;
     case "local":
       runLocal();
@@ -90,4 +95,8 @@ function main(): void {
   }
 }
 
-main();
+try {
+  main();
+} catch (err) {
+  fail(err);
+}

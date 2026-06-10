@@ -98,12 +98,38 @@ export function newState(name: string, now: number = Date.now()): State {
 export function loadState(path: string = getStatePath()): State | null {
   if (!existsSync(path)) return null;
   const raw = readFileSync(path, "utf8");
-  const parsed = JSON.parse(raw) as State | LegacyStateV1 | LegacyStateV2;
+
+  let parsed: State | LegacyStateV1 | LegacyStateV2;
+  try {
+    parsed = JSON.parse(raw) as State | LegacyStateV1 | LegacyStateV2;
+  } catch {
+    quarantineCorruptState(path);
+    return null;
+  }
+  if (parsed === null || typeof parsed !== "object" || typeof parsed.version !== "number") {
+    quarantineCorruptState(path);
+    return null;
+  }
 
   if (parsed.version === 3) return parsed;
   if (parsed.version === 2) return migrateV2ToV3(parsed);
   if (parsed.version === 1) return migrateV2ToV3(migrateV1ToV2(parsed));
   throw new Error(`Unsupported state version: ${(parsed as { version: number }).version}`);
+}
+
+/**
+ * A corrupt state file would otherwise crash every hook invocation until the
+ * user manually deletes it. Move it aside (never delete — it may be partially
+ * recoverable) and let the caller start fresh.
+ */
+function quarantineCorruptState(path: string): void {
+  try {
+    const quarantined = `${path}.corrupt-${Date.now()}`;
+    renameSync(path, quarantined);
+    process.stderr.write(`codetama: state file was corrupt — moved to ${quarantined}, starting fresh\n`);
+  } catch {
+    // If even the rename fails, fall through; the next save will overwrite.
+  }
 }
 
 function migrateV1ToV2(old: LegacyStateV1): LegacyStateV2 {
