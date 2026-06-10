@@ -138,3 +138,30 @@ export function isOver(a: Combatant, b: Combatant): "attacker" | "defender" | nu
 export function isOnCooldown(c: Combatant, skillId: string): boolean {
   return (c.cooldowns[skillId] ?? 0) > 0;
 }
+
+/** Below this HP fraction the autoplayer prefers a ready heal over attacking. */
+const AUTOPLAY_HEAL_BELOW = 0.35;
+
+/**
+ * Skill choice for auto-played turns. Pure random choice wasted heals at full
+ * HP and ignored them when dying; this keeps the randomness for variety but
+ * heals when low and never heals when (nearly) topped up.
+ */
+export function chooseAutoplaySkill(
+  skills: Skill[],
+  cooldowns: Record<string, number>,
+  hp: number,
+  maxHp: number,
+  rng: RngSource = realRng,
+): Skill | null {
+  const ready = skills.filter((s) => (cooldowns[s.id] ?? 0) === 0);
+  if (ready.length === 0) return skills.find((s) => s.cooldown === 0) ?? skills[0] ?? null;
+
+  const heals = ready.filter((s) => s.kind === "heal");
+  const offense = ready.filter((s) => s.kind !== "heal");
+  if (heals.length > 0 && (offense.length === 0 || hp / maxHp < AUTOPLAY_HEAL_BELOW)) {
+    return heals[Math.floor(rng.next() * heals.length)]!;
+  }
+  if (offense.length === 0) return ready[Math.floor(rng.next() * ready.length)]!;
+  return offense[Math.floor(rng.next() * offense.length)]!;
+}

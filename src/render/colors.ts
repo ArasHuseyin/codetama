@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-control-regex -- matching the ESC byte is the point here
 const ANSI_RE = /\x1b\[[0-9;]*m/g;
 
 const enabled =

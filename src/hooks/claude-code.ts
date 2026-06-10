@@ -28,7 +28,16 @@ export function readSettings(path: string = getClaudeSettingsPath()): ClaudeSett
   if (!existsSync(path)) return {};
   const raw = readFileSync(path, "utf8").trim();
   if (raw === "") return {};
-  return JSON.parse(raw) as ClaudeSettings;
+  try {
+    return JSON.parse(raw) as ClaudeSettings;
+  } catch (e) {
+    // Returning {} here would clobber the user's whole settings file on the
+    // next writeSettings(). Refuse instead and let them fix the file.
+    throw new Error(
+      `Claude settings at ${path} are not valid JSON (${(e as Error).message}). Fix or remove the file, then re-run.`,
+      { cause: e },
+    );
+  }
 }
 
 export function writeSettings(settings: ClaudeSettings, path: string = getClaudeSettingsPath()): void {
@@ -61,7 +70,6 @@ export function installHooks(path: string = getClaudeSettingsPath()): { added: n
   const settings = readSettings(path);
   const hooks = settings.hooks ?? {};
   const ours = buildHookCommands();
-  let added = 0;
 
   const upsert = (eventName: string, entries: HookMatcher[]): HookMatcher[] => {
     const existing = (hooks[eventName] ?? []).filter((m) => !isOurHook(m));
@@ -70,11 +78,10 @@ export function installHooks(path: string = getClaudeSettingsPath()): { added: n
 
   hooks["UserPromptSubmit"] = upsert("UserPromptSubmit", [ours.userPromptSubmit]);
   hooks["PostToolUse"] = upsert("PostToolUse", [ours.postToolUse]);
-  added = 2;
 
   settings.hooks = hooks;
   writeSettings(settings, path);
-  return { added };
+  return { added: 2 };
 }
 
 export function uninstallHooks(path: string = getClaudeSettingsPath()): { removed: number } {
